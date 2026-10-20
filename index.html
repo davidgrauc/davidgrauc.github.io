@@ -3,7 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Plataforma de datos</title>
+<title>Plataforma de datos · David Grau</title>
+<meta name="description" content="Proyecto interactivo de David Grau, Analytics Engineer: cómo viaja un dato de marketing desde la fuente hasta el dashboard, con las decisiones técnicas de cada paso (BigQuery, Cloud Run, modelado y atribución).">
+<meta name="author" content="David Grau">
+<link rel="canonical" href="https://davidgrauc.github.io/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://davidgrauc.github.io/">
+<meta property="og:title" content="Plataforma de datos: del origen al dashboard · David Grau">
+<meta property="og:description" content="Proyecto interactivo: ingesta, BigQuery, modelado, calidad, atribución y un panel por producto, con datos sintéticos.">
+<meta property="og:image" content="https://davidgrauc.github.io/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Panel de un producto: leads, inversión, CPL, oportunidades, ventas e ingresos, con leads por día y funnel">
+<meta property="og:locale" content="es_ES">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://davidgrauc.github.io/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231c2d38'/%3E%3Crect x='7' y='17' width='4' height='8' fill='%23b9c8d3'/%3E%3Crect x='14' y='12' width='4' height='13' fill='%238fa9ba'/%3E%3Crect x='21' y='7' width='4' height='18' fill='%23d6e0e7'/%3E%3C/svg%3E">
 <style>
   :root{
     color-scheme: light;
@@ -14,14 +29,15 @@
     --line:#cfcfcf;
     --ink:#0a0a0a;
     --ink-2:#4a4a4a;
-    --ink-3:#8a8a8a;
+    --ink-3:#666666;            /* ≥ 4,5:1 sobre blanco, --soft y --softer */
     /* escala única gris azulado, de claro a oscuro: s1 → s6 */
-    --s1:#d6e0e7; --s2:#b9c8d3; --s3:#8fa9ba; --s4:#5d7f94; --s5:#2f4858; --s6:#1c2d38;
-    --c1:var(--s5); --c1s:#dfe6eb;
-    --c2:var(--s3); --c2s:#e8eef2;
-    --c3:var(--s6); --c3s:#dbe2e7;
-    --c4:var(--s4); --c4s:#e3eaef;
-    --c5:var(--s2); --c5s:#eef2f5;
+    --s1:#d6e0e7; --s2:#b9c8d3; --s3:#8fa9ba; --s4:#5d7f94; --s45:#4a6b80; --s5:#2f4858; --s6:#1c2d38;
+    /* series de datos: ≥ 3:1 sobre blanco y distinguibles entre sí */
+    --c1:var(--s5);  --c1s:#dfe6eb;
+    --c2:#7894a7;    --c2s:#e8eef2;
+    --c3:var(--s6);  --c3s:#dbe2e7;
+    --c4:var(--s45); --c4s:#e3eaef;
+    --c5:var(--s3);  --c5s:#eef2f5;
     --r:4px;
     --font: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -29,6 +45,8 @@
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
   button{font:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .wrap{max-width:1240px;margin:0 auto;padding:0 24px}
   @media (max-width:640px){.wrap{padding:0 16px}}
 
@@ -40,18 +58,37 @@
   .top .lede ul{margin:6px 0 0;padding-left:18px}
   .top .lede li{margin:2px 0}
   .top .lede li::marker{color:var(--c3)}
+  .top .links{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+  .top .links a{font-size:12px;font-weight:700;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:var(--r);padding:4px 10px}
+  .top .links a:hover{border-color:var(--ink)}
+  .top .links a.main{background:var(--ink);color:#fff;border-color:var(--ink)}
+  footer a{color:var(--ink-2)}
   .stripe{display:flex;height:4px}
   .stripe i{flex:1}
   @media (max-width:760px){header.top .wrap{flex-direction:column}.top .title{padding:20px 16px}.top .lede{padding:16px 0}.top h1{font-size:28px}}
 
+  /* ---------- Mi papel e impacto ---------- */
+  .impact{padding:22px 0 18px;border-bottom:1px solid var(--line)}
+  .impact .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:12px}
+  .impact h2{font-size:18px;margin:0}
+  .impact .head p{margin:0;font-size:13px;color:var(--ink-2);max-width:760px}
+  .impact .head a{font-size:12px;font-weight:700;color:var(--ink)}
+  .imp{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:0;padding:0;list-style:none}
+  @media (max-width:1000px){.imp{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:520px){.imp{grid-template-columns:repeat(2,1fr)}}
+  .imp li{background:var(--softer);border-left:3px solid var(--s45);padding:10px 12px;border-radius:2px}
+  .imp b{display:block;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+  .imp span{font-size:12px;color:var(--ink-2)}
+
   nav.parts{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
-  nav.parts .wrap{display:flex;gap:4px;padding-top:10px}
+  nav.parts .wrap{display:flex;gap:4px;padding-top:10px;align-items:center}
+  nav.parts [role=tablist]{display:flex;gap:4px}
   nav.parts button{background:none;border:0;padding:10px 16px 12px;font-weight:700;font-size:14px;color:var(--ink-3);border-bottom:3px solid transparent}
   nav.parts button[aria-selected="true"]{color:var(--ink);border-color:var(--c1)}
-  nav.parts .stamp{margin-left:auto;align-self:center;font-size:12px;color:var(--ink-3)}
+  nav.parts .stamp{margin-left:auto;font-size:12px;color:var(--ink-3)}
   @media (max-width:640px){nav.parts .stamp{display:none}nav.parts button{padding:10px 10px 12px}}
 
-  section.part{display:none;padding:28px 0 56px}
+  section.part{display:none;padding:28px 0 40px}
   section.part.on{display:block}
   h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px}
   h3{font-size:14px;font-weight:800;margin:0 0 10px;letter-spacing:.01em}
@@ -64,20 +101,20 @@
   .btn.ghost{background:var(--soft);color:var(--ink)}
   .hint{font-size:12px;color:var(--ink-3)}
 
-  .flow{display:grid;grid-template-columns:repeat(7,1fr);position:relative;margin-bottom:24px}
-  .node{position:relative;background:var(--soft);border:0;border-top:4px solid var(--acc);text-align:left;padding:12px 14px 16px;min-height:132px;display:flex;flex-direction:column;gap:6px;transition:background .2s,color .2s}
-  .node + .node{margin-left:18px}
-  .node:not(:last-child)::after{content:"";position:absolute;right:-18px;top:50%;width:18px;height:2px;background:var(--ink);transform:translateY(-50%)}
-  .node:not(:last-child)::before{content:"";position:absolute;right:-19px;top:50%;border:5px solid transparent;border-left-color:var(--ink);transform:translate(4px,-50%);z-index:1}
+  .flow{display:grid;grid-template-columns:repeat(8,1fr);position:relative;margin-bottom:24px}
+  .node{position:relative;background:var(--soft);border:0;border-top:4px solid var(--acc);text-align:left;padding:12px 12px 16px;min-height:132px;display:flex;flex-direction:column;gap:6px;transition:background .2s,color .2s}
+  .node + .node{margin-left:14px}
+  .node:not(:last-child)::after{content:"";position:absolute;right:-14px;top:50%;width:14px;height:2px;background:var(--ink);transform:translateY(-50%)}
+  .node:not(:last-child)::before{content:"";position:absolute;right:-15px;top:50%;border:5px solid transparent;border-left-color:var(--ink);transform:translate(4px,-50%);z-index:1}
   .node .n{font-size:11px;font-weight:700;color:var(--ink-3)}
   .node .t{font-size:15px;font-weight:800;line-height:1.15}
   .node .d{font-size:12px;color:var(--ink-2);margin-top:auto}
   .node:hover{background:var(--accs)}
-  .node[aria-pressed="true"]{background:var(--ink);color:#fff}
-  .node[aria-pressed="true"] .d{color:#cfcfcf}
+  .node[aria-current="step"]{background:var(--ink);color:#fff}
+  .node[aria-current="step"] .d,.node[aria-current="step"] .n{color:#d6d6d6}
   .node.pulse{animation:pulse .6s ease}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,0,0,.35)}100%{box-shadow:0 0 0 10px rgba(0,0,0,0)}}
-  @media (max-width:980px){
+  @media (max-width:1060px){
     .flow{grid-template-columns:1fr;gap:14px}
     .node + .node{margin-left:0}
     .node{min-height:0}
@@ -87,101 +124,124 @@
 
   .detail{display:grid;grid-template-columns:1.1fr 1fr;gap:24px}
   @media (max-width:900px){.detail{grid-template-columns:1fr}}
-  .card{border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;background:var(--bg)}
+  .card{border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;background:var(--bg);min-width:0}
   .card.grey{background:var(--softer)}
-  #stageInfo{border-top:4px solid var(--acc)}
+  #stageInfo{border-top:4px solid var(--acc);scroll-margin-top:60px}
   .detail h2{font-size:24px}
   .detail p{margin:0 0 12px;color:var(--ink-2)}
   .bul{margin:0 0 4px;padding-left:18px}
   .bul li{margin:4px 0}
   .bul li::marker{color:var(--acc)}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
-  .chip{background:var(--accs);border-radius:2px;padding:3px 8px;font-size:12px;font-weight:600}
   pre.code{margin:0;background:var(--ink);color:#e9e9e9;font-family:var(--mono);font-size:12px;line-height:1.55;padding:14px 16px;border-radius:var(--r);overflow:auto;white-space:pre}
-  pre.code .c{color:#8f8f8f}
+  pre.code .c{color:#a3a3a3}
   pre.code .h{color:var(--s2);font-weight:700}
   pre.code .s{color:var(--s1)}
-  .rec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:10px}
+  pre.code .ok{color:#cfe3d4}
+  details.sql{margin-top:12px}
+  details.sql summary{font-size:12px;font-weight:700;cursor:pointer;color:var(--ink);margin-bottom:8px}
+  .rec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:10px;flex-wrap:wrap}
   .tbl-scroll{overflow:auto;max-width:100%}
   table{border-collapse:collapse;width:100%;font-size:13px}
   th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
   th{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-  tr.chg td{background:var(--c2s)}
-  .diff-old{color:var(--ink-3);text-decoration:line-through}
   .fix{background:var(--c1s);padding:1px 4px;border-radius:2px;box-shadow:inset 0 -2px 0 var(--s4)}
-  .bad{color:var(--s4);font-weight:700}
-  .rules{list-style:none;margin:14px 0 0;padding:0;font-size:12px;display:grid;gap:6px}
+  .fix sup{font-size:9px;font-weight:800;color:var(--s5);margin-left:2px}
+  .bad{color:var(--s45);font-weight:700;text-decoration:underline dotted;text-underline-offset:3px}
+  .rules{list-style:none;margin:14px 0 0;padding:0;font-size:12px;display:grid;gap:6px;color:var(--ink-2)}
   .rules li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start}
   .rules li span{background:var(--s5);color:#fff;font-weight:700;font-size:11px;text-align:center;border-radius:2px;line-height:18px}
-  .sumline{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:13px;font-weight:700}
-  .sumline i{font-style:normal;color:var(--s4)}
+  .sumline{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:13px;font-weight:700;flex-wrap:wrap}
+  .sumline i{font-style:normal;color:var(--s45)}
   .detail.wide{grid-template-columns:1fr}
   .demo-note{margin:10px 0 0;font-size:12px;color:var(--ink-2);background:var(--bg);border-left:3px solid var(--s4);padding:6px 10px;max-width:640px}
   .demo-note strong{color:var(--ink)}
   .dec-in{display:grid;gap:6px;margin-top:12px;font-size:13px;color:var(--ink-2)}
   .dec-in div{background:var(--softer);border-left:3px solid var(--acc);padding:7px 10px}
   .dec-in div + div{border-left-color:var(--line)}
+  .dec-in div.cost{border-left-color:var(--s45)}
   .dec-in b{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);margin-bottom:1px}
-  svg.er{display:block;width:100%;max-width:820px;height:auto;margin:4px auto 0}
+  .er-wrap{overflow-x:auto}
+  svg.er{display:block;width:100%;min-width:560px;max-width:820px;height:auto;margin:4px auto 0}
   svg.er text{font-family:var(--mono);font-size:11px;fill:var(--ink-2)}
   svg.er .hd{font-family:var(--font);font-weight:800;font-size:12px}
   svg.er .k{font-size:9px;fill:var(--ink-3);font-weight:700}
   svg.er .rel{fill:none;stroke:var(--s3);stroke-width:1.5;transition:opacity .15s,stroke .15s}
-  svg.er .card{fill:#fff;stroke:var(--line)}
-  svg.er g.t{cursor:default;transition:opacity .15s}
-  svg.er .card-n{font-family:var(--font);font-size:10px;font-weight:800;fill:var(--s4)}
+  svg.er .box{fill:#fff;stroke:var(--line)}
+  svg.er g.t{cursor:pointer;transition:opacity .15s;outline:none}
+  svg.er g.t:focus-visible .box{stroke:var(--ink);stroke-width:2}
+  svg.er .card-n{font-family:var(--font);font-size:10px;font-weight:800;fill:var(--s45)}
   svg.er.focus .rel:not(.on),svg.er.focus .card-n:not(.on){opacity:.1}
   svg.er.focus g.t:not(.on){opacity:.35}
   svg.er .rel.on{stroke:var(--s5);stroke-width:2.2}
   .er-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin-top:10px;justify-content:center}
   .er-legend i{display:inline-block;width:12px;height:12px;margin-right:6px;vertical-align:-2px;border:1px solid var(--line)}
-  .schema{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}
-  .schema div{background:var(--soft);padding:8px 10px;border-radius:2px;border-left:3px solid var(--c5)}
-  .schema b{display:block;font-family:var(--mono);font-size:12px}
-  .schema span{font-size:11px;color:var(--ink-2)}
-  .schema .hub{grid-column:1 / -1;background:var(--ink);color:#fff;border-left-color:var(--c4)}
-  .schema .hub span{color:#cfcfcf}
   .tile{border:1px solid var(--line);padding:14px;border-radius:var(--r);background:var(--bg)}
   .tile .u{font-family:var(--mono);font-size:12px;background:var(--soft);padding:6px 8px;border-radius:2px;margin-bottom:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---------- En producción ---------- */
+  #produccion{padding:8px 0 48px}
+  #produccion .grid{display:grid;grid-template-columns:1.1fr 1fr;gap:18px}
+  @media (max-width:900px){#produccion .grid{grid-template-columns:1fr}}
+  #produccion dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+  #produccion dt{font-weight:700}
+  #produccion dd{margin:0;color:var(--ink-2)}
+  #produccion code{font-family:var(--mono);font-size:12px;background:var(--soft);padding:1px 5px;border-radius:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0;list-style:none}
+  .chips li{background:var(--c1s);border-radius:2px;padding:3px 8px;font-size:12px;font-weight:600}
 
   /* ---------- PARTE 2 ---------- */
   .dash-head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
   .owner{font-size:12px;color:var(--ink-2);margin-top:4px}
   .owner b{color:var(--ink)}
   .filters{display:flex;gap:10px;flex-wrap:wrap}
+  .filters[hidden]{display:none}
   .filters label{display:flex;flex-direction:column;font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;gap:4px}
   select{font:inherit;font-size:14px;font-weight:600;padding:7px 30px 7px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%230a0a0a'/%3E%3C/svg%3E") no-repeat right 10px center;appearance:none;color:var(--ink)}
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+  .tabs-wrap{position:relative;margin-bottom:20px}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs-wrap.more::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:40px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff);pointer-events:none}
   .tabs button{background:none;border:0;padding:9px 14px;font-size:13px;font-weight:700;color:var(--ink-3);border-bottom:2px solid transparent;white-space:nowrap}
   .tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--c1)}
   .tab{display:none}.tab.on{display:block}
+  .tabnote{font-size:12px;color:var(--ink-3);margin:-8px 0 14px}
 
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
   @media (max-width:1000px){.kpis{grid-template-columns:repeat(3,1fr)}}
   @media (max-width:520px){.kpis{grid-template-columns:repeat(2,1fr)}}
-  .kpi{background:var(--soft);padding:12px 14px;border-radius:var(--r);border-top:3px solid var(--kc,var(--c5))}
+  .kpi{background:var(--soft);padding:12px 14px;border-radius:var(--r);border-top:3px solid var(--kc,var(--c5));min-width:0}
   .kpi .l{font-size:11px;font-weight:700;color:var(--ink-2);letter-spacing:.03em;text-transform:uppercase}
   .kpi .v{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+  @media (max-width:520px){.kpi .v{font-size:22px}}
   .kpi .x{font-size:12px;color:var(--ink-2)}
   .kpi .x b{color:var(--ink)}
   .kpi.dark{background:var(--ink);color:#fff;border-top-color:var(--s3)}
-  .kpi.dark .l,.kpi.dark .x{color:#cfcfcf}.kpi.dark .x b{color:var(--s2)}
+  .kpi.dark .l,.kpi.dark .x{color:#d6d6d6}.kpi.dark .x b{color:var(--s1)}
+  .kpi[data-tip]{cursor:help}
+
+  .insight{background:var(--softer);border-left:3px solid var(--s45);padding:10px 14px;margin:0 0 18px;font-size:13px;color:var(--ink-2)}
+  .insight b{color:var(--ink)}
+  .insight p{margin:0}.insight p + p{margin-top:4px}
 
   .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:18px}
   .grid2.even{grid-template-columns:1fr 1fr}
+  .grid2.stack{grid-template-columns:1fr}
   @media (max-width:900px){.grid2,.grid2.even{grid-template-columns:1fr}}
   .card .cap{font-size:12px;color:var(--ink-3);margin:-6px 0 10px}
   .legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2);margin-bottom:6px;flex-wrap:wrap}
   .legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
   svg.chart{display:block;width:100%;height:auto;overflow:visible}
-  svg.chart text{font-family:var(--font);font-size:11px;fill:var(--ink-3)}
-  svg.chart rect[data-tip]:hover{opacity:.75}
+  svg.chart text{font-family:var(--font);font-size:12px;fill:var(--ink-3)}
   svg.chart .grid{stroke:var(--line);stroke-width:1}
   svg.chart .axis{stroke:var(--ink);stroke-width:1}
+  svg.chart .hit{fill:transparent}
+  svg.chart g.cat:hover .bar,svg.chart g.cat.on .bar{opacity:.72}
+  svg.chart g.cat.on .hit{fill:rgba(0,0,0,.04)}
 
   .funnel{display:flex;flex-direction:column;gap:8px}
-  .funnel .row{display:grid;grid-template-columns:100px 1fr 90px;align-items:center;gap:10px;font-size:13px}
+  .funnel .row{display:grid;grid-template-columns:110px 1fr 90px;align-items:center;gap:10px;font-size:13px}
+  @media (max-width:520px){.funnel .row{grid-template-columns:92px 1fr 76px}}
   .funnel .track{background:var(--soft);height:30px}
   .funnel .fill{height:100%;transition:width .5s ease}
   .funnel .lab{font-weight:700}
@@ -193,21 +253,23 @@
   .hbar .f{background:var(--c1);height:100%}
   tbody tr.click{cursor:pointer}
   tbody tr.click:hover td{background:var(--c1s)}
-  th.sort{cursor:pointer;user-select:none}
-  th.sort::after{content:" ↕";color:var(--line)}
-  th.sort.asc::after{content:" ↑";color:var(--ink)}
-  th.sort.desc::after{content:" ↓";color:var(--ink)}
+  th .sb{background:none;border:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;font-weight:inherit;cursor:pointer}
+  th .sb::after{content:" ↕";color:var(--ink-3)}
+  th[aria-sort="ascending"] .sb::after{content:" ↑";color:var(--ink)}
+  th[aria-sort="descending"] .sb::after{content:" ↓";color:var(--ink)}
+  th[aria-sort] .sb{color:var(--ink)}
+  .lnk{background:none;border:0;padding:0;font-weight:800;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:0}
   .tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:2px}
-  .tag.pago{background:var(--c1s);color:var(--c1)}
-  .tag.org{background:var(--c2s);color:var(--s4)}
+  .tag.pago{background:var(--c1s);color:var(--s5)}
+  .tag.org{background:var(--c2s);color:var(--s45)}
   .seg{display:inline-flex;background:var(--soft);border-radius:var(--r);padding:3px;gap:2px}
   .seg button{border:0;background:none;padding:5px 12px;font-size:12px;font-weight:700;border-radius:3px;color:var(--ink-2)}
   .seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
   .note{font-size:12px;color:var(--ink-3);margin-top:10px}
   tfoot td{font-weight:800;border-top:2px solid var(--ink);border-bottom:0}
 
-  #tip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:3px;z-index:50;opacity:0;transition:opacity .1s;white-space:nowrap}
+  #tip{position:fixed;left:0;top:0;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:3px;z-index:50;opacity:0;transition:opacity .1s;max-width:min(320px,calc(100vw - 16px))}
   #tip.on{opacity:1}
   footer{border-top:1px solid var(--line);padding:16px 0 28px;font-size:12px;color:var(--ink-3)}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -219,22 +281,46 @@
   <div class="wrap">
     <div class="title"><h1>Plataforma de datos:<br>del origen al dashboard</h1></div>
     <div class="lede">
-      <b>Proyecto demostrativo de arquitectura analítica y reporting · David Grau</b>
+      <b>Proyecto de David Grau · Analytics Engineer · Growth Data</b>
       <ul>
         <li>Cómo viaja un dato desde la fuente hasta el panel que consulta el equipo.</li>
         <li>Cómo se ve el entregable final: un panel por producto.</li>
-        <li>En cada paso, la decisión técnica clave y lo que cuesta.</li>
+        <li>En cada paso, la decisión técnica clave, lo que se sacrifica y lo que cuesta.</li>
       </ul>
-      <p class="demo-note"><strong>Proyecto demostrativo.</strong> Datos sintéticos y arquitectura de referencia para ilustrar el flujo de ingesta, transformación, modelado y reporting. No hay servicios ni conexiones activas detrás de esta página.</p>
+      <p class="demo-note"><strong>Basado en un caso real.</strong> Reproduce, con datos sintéticos, la arquitectura que diseñé y mantengo en producción. Productos, contactos e importes son ficticios; esta página no se conecta a ningún servicio.</p>
+      <div class="links">
+        <a class="main" href="https://www.linkedin.com/in/david-grau-camps/" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="CV_DavidG_ES.pdf" target="_blank" rel="noopener">CV (PDF)</a>
+        <a href="mailto:davidgrau6@gmail.com">davidgrau6@gmail.com</a>
+      </div>
     </div>
   </div>
-  <div class="stripe"><i style="background:var(--s1)"></i><i style="background:var(--s2)"></i><i style="background:var(--s3)"></i><i style="background:var(--s4)"></i><i style="background:var(--s5)"></i><i style="background:var(--s6)"></i></div>
+  <div class="stripe" aria-hidden="true"><i style="background:var(--s1)"></i><i style="background:var(--s2)"></i><i style="background:var(--s3)"></i><i style="background:var(--s4)"></i><i style="background:var(--s5)"></i><i style="background:var(--s6)"></i></div>
 </header>
 
+<section class="impact" id="impacto" aria-labelledby="impTitle">
+  <div class="wrap">
+    <div class="head">
+      <h2 id="impTitle">Mi papel e impacto</h2>
+      <p>Diseño, construyo y mantengo la plataforma de datos de marketing de punta a punta: ingesta, modelo, calidad y paneles. <a href="#produccion">Cómo se trabaja en producción ↓</a></p>
+    </div>
+    <ul class="imp">
+      <li><b>11</b><span>pipelines de ingesta en producción</span></li>
+      <li><b>Cada hora</b><span>se reconstruye el modelo de datos</span></li>
+      <li><b>~10</b><span>paneles en Cloud Run para dirección, Growth y media buying</span></li>
+      <li><b>hasta −78 %</b><span>de consumo de BigQuery en los procesos más pesados</span></li>
+      <li><b>hasta 40 %</b><span>de discrepancia entre fuentes, detectada y corregida</span></li>
+      <li><b>decenas de miles de €</b><span>en errores de atribución detectados</span></li>
+    </ul>
+  </div>
+</section>
+
 <nav class="parts" aria-label="Partes">
-  <div class="wrap" role="tablist">
-    <button role="tab" aria-selected="true" data-part="flujo">1 · Flujo de datos</button>
-    <button role="tab" aria-selected="false" data-part="panel">2 · Entregable</button>
+  <div class="wrap">
+    <div role="tablist" aria-label="Partes de la página" id="partTabs">
+      <button role="tab" id="t-flujo" aria-controls="part-flujo" aria-selected="true" tabindex="0" data-part="flujo">1 · Flujo de datos</button>
+      <button role="tab" id="t-panel" aria-controls="part-panel" aria-selected="false" tabindex="-1" data-part="panel">2 · Entregable</button>
+    </div>
     <span class="stamp">Datos sintéticos · arquitectura de referencia</span>
   </div>
 </nav>
@@ -242,95 +328,101 @@
 <main class="wrap">
 
 <!-- =================== PARTE 1 =================== -->
-<section class="part on" id="part-flujo">
+<section class="part on" id="part-flujo" role="tabpanel" aria-labelledby="t-flujo">
   <h2>El flujo de datos, de punta a punta</h2>
-  <p class="sub">Siete pasos. Pulsa cada uno para ver qué hace y cómo queda un mismo registro de ejemplo (un lead del Producto A) a su paso. O dale a «Recorrer el flujo».</p>
+  <p class="sub" id="flowSub">Pulsa cada paso para ver qué hace y qué produce, siguiendo al contacto 10482 (un lead del Producto A) allí donde aparece. O dale a «Recorrer el flujo».</p>
 
   <div class="flow-bar">
-    <button class="btn" id="play">▶ Recorrer el flujo</button>
+    <button class="btn" id="play" aria-pressed="false">▶ Recorrer el flujo</button>
     <button class="btn ghost" id="toPanel">Ver el entregable →</button>
-    <span class="hint" id="playHint">Paso 1 de 7</span>
+    <span class="hint" id="playHint" aria-live="polite"></span>
   </div>
 
-  <div class="flow" id="flow"></div>
+  <div class="flow" id="flow" role="group" aria-label="Pasos del flujo"></div>
 
   <div class="detail">
     <div class="card" id="stageInfo"></div>
     <div class="card grey" id="stageRec"></div>
   </div>
-
 </section>
 
 <!-- =================== PARTE 2 =================== -->
-<section class="part" id="part-panel">
+<section class="part" id="part-panel" role="tabpanel" aria-labelledby="t-panel">
   <div class="dash-head">
     <div>
       <div class="eyebrow">Proyecto demostrativo · panel</div>
       <h2 id="dashTitle">Producto A</h2>
       <div class="owner">Responsable: <b>David Grau</b></div>
     </div>
-    <div class="filters">
+    <div class="filters" id="filters">
       <label>Producto <select id="selProducto"></select></label>
       <label>Periodo <select id="selPeriodo">
         <option value="toda">Toda la campaña</option>
-        <option value="d7">Últimos 7 días</option>
+        <option value="d7">Últimos 7 días de captación</option>
       </select></label>
     </div>
   </div>
 
-  <div class="tabs" role="tablist" id="dashTabs">
-    <button role="tab" data-tab="resumen" aria-selected="false">Resumen</button>
-    <button role="tab" data-tab="producto" aria-selected="true">Producto</button>
-    <button role="tab" data-tab="paises" aria-selected="false">Por países</button>
-    <button role="tab" data-tab="adq" aria-selected="false">Adquisición</button>
-    <button role="tab" data-tab="opor" aria-selected="false">Oportunidades</button>
+  <div class="tabs-wrap" id="tabsWrap">
+    <div class="tabs" role="tablist" id="dashTabs" aria-label="Vistas del panel">
+      <button role="tab" id="t-resumen" aria-controls="tab-resumen" data-tab="resumen" aria-selected="false" tabindex="-1">Resumen</button>
+      <button role="tab" id="t-producto" aria-controls="tab-producto" data-tab="producto" aria-selected="true" tabindex="0">Producto</button>
+      <button role="tab" id="t-paises" aria-controls="tab-paises" data-tab="paises" aria-selected="false" tabindex="-1">Por países</button>
+      <button role="tab" id="t-adquisicion" aria-controls="tab-adquisicion" data-tab="adquisicion" aria-selected="false" tabindex="-1">Adquisición</button>
+      <button role="tab" id="t-oportunidades" aria-controls="tab-oportunidades" data-tab="oportunidades" aria-selected="false" tabindex="-1">Oportunidades</button>
+    </div>
   </div>
 
-  <div class="tab" id="tab-resumen">
+  <div class="tab" id="tab-resumen" role="tabpanel" aria-labelledby="t-resumen">
+    <p class="tabnote">Campaña completa de cada producto.</p>
     <div class="kpis" id="kpisResumen"></div>
+    <div class="insight" id="insResumen"></div>
     <div class="card">
       <h3>Todos los productos</h3>
-      <p class="cap">Pulsa una fila para abrir el producto. Ordena por cualquier columna.</p>
+      <p class="cap">Pulsa un producto para abrir su panel. Ordena por cualquier columna.</p>
       <div class="tbl-scroll"><table id="tblResumen"></table></div>
     </div>
   </div>
 
-  <div class="tab on" id="tab-producto">
+  <div class="tab on" id="tab-producto" role="tabpanel" aria-labelledby="t-producto">
     <div class="kpis" id="kpisProducto"></div>
+    <div class="insight" id="insProducto"></div>
     <div class="grid2">
       <div class="card">
         <h3>Leads por día</h3>
-        <p class="cap">Periodo de captación · pasa el ratón para ver la inversión del día</p>
+        <p class="cap" id="capLeads">Periodo de captación · toca o pasa el cursor por un día para ver la inversión</p>
         <div class="legend"><span><i style="background:var(--c1)"></i>Pago</span><span><i style="background:var(--c2)"></i>Orgánico</span></div>
         <div id="chLeads"></div>
       </div>
       <div class="card">
         <h3>Funnel</h3>
-        <p class="cap">Contactos únicos por fase y conversión sobre la fase anterior</p>
+        <p class="cap">Visitas (sesiones) y contactos únicos por fase · conversión sobre la fase anterior</p>
         <div class="funnel" id="funnel"></div>
-        <p class="note" id="espNote"></p>
+        <p class="note">Oportunidades y ventas de los leads del periodo (por cohorte). Barras en escala de raíz para que se lean las fases pequeñas.</p>
       </div>
     </div>
   </div>
 
-  <div class="tab" id="tab-paises">
-    <div class="grid2">
+  <div class="tab" id="tab-paises" role="tabpanel" aria-labelledby="t-paises">
+    <div class="insight" id="insPaises"></div>
+    <div class="grid2 stack">
       <div class="card">
         <h3>Por agrupación de países</h3>
-        <p class="cap">País del contacto: prefijo del teléfono o, si no hay, IP</p>
+        <p class="cap">País del contacto: prefijo del teléfono o, si no hay, IP · inversión por mercado de la campaña</p>
         <div class="tbl-scroll"><table id="tblPaises"></table></div>
       </div>
       <div class="card">
         <h3>CPL Ads frente a CPL blended</h3>
-        <p class="cap">Blended = inversión / todos los leads (pago + orgánico)</p>
-        <div class="legend"><span><i style="background:var(--c1)"></i>CPL Ads</span><span><i style="background:var(--c5)"></i>CPL blended</span></div>
+        <p class="cap">CPL Ads = inversión / leads de pago · blended = inversión / todos los leads</p>
+        <div class="legend"><span><i style="background:var(--c1)"></i>CPL Ads</span><span><i style="background:var(--c2)"></i>CPL blended</span></div>
         <div id="chPaises"></div>
       </div>
     </div>
   </div>
 
-  <div class="tab" id="tab-adq">
+  <div class="tab" id="tab-adquisicion" role="tabpanel" aria-labelledby="t-adquisicion">
     <div class="kpis" id="kpisAdq"></div>
+    <div class="insight" id="insAdq"></div>
     <div class="card" style="margin-bottom:18px">
       <h3>Todos los canales</h3>
       <p class="cap">El canal sale de las UTM de la URL o, si no trae, de los campos ocultos del formulario</p>
@@ -339,7 +431,7 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
         <h3 style="margin:0">Detalle</h3>
-        <div class="seg" id="segAdq">
+        <div class="seg" id="segAdq" role="group" aria-label="Detalle de">
           <button aria-pressed="true" data-v="pago">Pago</button>
           <button aria-pressed="false" data-v="org">Orgánico</button>
         </div>
@@ -348,27 +440,50 @@
     </div>
   </div>
 
-  <div class="tab" id="tab-opor">
+  <div class="tab" id="tab-oportunidades" role="tabpanel" aria-labelledby="t-oportunidades">
     <div class="kpis" id="kpisOpor"></div>
+    <div class="insight" id="insOpor"></div>
     <div class="grid2 even">
       <div class="card">
         <h3>Oportunidades y ventas por día</h3>
-        <p class="cap">Desde el cierre de la captación, tres semanas</p>
+        <p class="cap">Desde el cierre de la captación, tres semanas · por fecha del evento</p>
         <div class="legend"><span><i style="background:var(--c2)"></i>Oportunidades</span><span><i style="background:var(--c3)"></i>Ventas</span></div>
         <div id="chOpor"></div>
       </div>
       <div class="card">
         <h3>Ingresos acumulados</h3>
-        <p class="cap">Importe de las ventas ganadas en el CRM</p>
+        <p class="cap">Importe de las ventas ganadas en el CRM, por fecha de venta</p>
         <div id="chIng"></div>
       </div>
     </div>
   </div>
 </section>
+
+<!-- =================== EN PRODUCCIÓN =================== -->
+<section id="produccion" aria-labelledby="prodTitle">
+  <h2 id="prodTitle">En producción</h2>
+  <p class="sub">Lo que hay detrás del caso real que reproduce esta página. El código pertenece a la empresa y no es público.</p>
+  <div class="grid">
+    <div class="card">
+      <h3>El repositorio</h3>
+      <dl>
+        <dt>Tamaño</dt><dd>Monorepo privado: unos 190 commits desde septiembre de 2026 y unas 100.000 líneas (≈260 ficheros SQL y ≈140 de Python).</dd>
+        <dt>Estructura</dt><dd><code>etls/</code> · <code>services/</code> · <code>jobs/</code> · <code>sql/</code> · <code>ops/</code> · <code>docs/</code></dd>
+        <dt>Prácticas</dt><dd>Todo versionado y desplegado desde el repo. Cada cambio se prueba en un dataset aislado y se compara con producción por clave. Revisión automática del SQL y dry run de coste antes de cada consulta pesada. Cada cambio queda documentado.</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>Stack</h3>
+      <ul class="chips">
+        <li>BigQuery</li><li>Cloud Run (jobs y services)</li><li>Cloud Scheduler</li><li>Cloud Storage</li><li>Vertex AI (Gemini)</li><li>Python</li><li>SQL</li><li>Docker</li><li>Git</li>
+      </ul>
+    </div>
+  </div>
+</section>
 </main>
 
-<footer><div class="wrap">Plataforma de datos: del origen al dashboard · David Grau · Proyecto demostrativo: datos sintéticos y arquitectura de referencia. Productos, contactos, importes y URLs son ficticios.</div></footer>
-<div id="tip" role="tooltip"></div>
+<footer><div class="wrap">Plataforma de datos: del origen al dashboard · David Grau · <a href="https://www.linkedin.com/in/david-grau-camps/">LinkedIn</a> · <a href="mailto:davidgrau6@gmail.com">davidgrau6@gmail.com</a> · Datos sintéticos: productos, contactos, importes y URL son ficticios.</div></footer>
+<div id="tip" role="tooltip" aria-live="polite"></div>
 
 <script>
 (() => {
@@ -376,525 +491,828 @@
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const sum = a => a.reduce((x, y) => x + y, 0);
 const fmt = (n, d = 0) => {
   const s = Math.abs(n).toFixed(d).split(".");
   s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return (n < 0 ? "−" : "") + s.join(",");
 };
 const eur = (n, d = 0) => fmt(n, d) + " €";
+const E = (cent, d = 0) => eur(cent / 100, d);          // importes guardados en céntimos
 const pct = (n, d = 1) => fmt(n * 100, d) + " %";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plano = s => String(s).replace(/<br>/g, ". ").replace(/<[^>]+>/g, "");
 function rng(seed){ let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const RM = matchMedia("(prefers-reduced-motion: reduce)");
+const suave = () => RM.matches ? "auto" : "smooth";
+const movil = () => matchMedia("(max-width:1060px)").matches;
+
+/* Reparto exacto (mayor resto): divide un entero en partes proporcionales a los pesos
+   y las partes suman exactamente el total. Es la única forma de repartir de toda la página. */
+function reparto(total, pesos){
+  const s = sum(pesos);
+  if (!s) return pesos.map((_, i) => i === 0 ? total : 0);
+  const raw = pesos.map(p => total * p / s), base = raw.map(Math.floor);
+  const orden = raw.map((x, i) => [x - base[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  const resto = total - sum(base);
+  for (let k = 0; k < resto; k++) base[orden[k][1]]++;
+  return base;
+}
+
+/* ---------- fechas: relativas a hoy, ninguna posterior a hoy ---------- */
+const DIA = 864e5;
+const HOY = (() => { const d = new Date(); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); })();
 const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-const fecha = (base, off) => { const d = new Date(base + "T12:00:00"); d.setDate(d.getDate() + off); return d.getDate() + " " + MESES[d.getMonth()]; };
-
-const tip = $("#tip");
-document.addEventListener("mousemove", e => {
-  const t = e.target.closest("[data-tip]");
-  if (!t){ tip.classList.remove("on"); return; }
-  tip.innerHTML = t.getAttribute("data-tip");
-  tip.classList.add("on");
-  const w = tip.offsetWidth;
-  tip.style.left = Math.min(e.clientX + 12, innerWidth - w - 8) + "px"; tip.style.top = (e.clientY - 36) + "px";
-});
-
-function showPart(p){
-  $$("nav.parts [data-part]").forEach(b => b.setAttribute("aria-selected", b.dataset.part === p));
-  $$("section.part").forEach(s => s.classList.toggle("on", s.id === "part-" + p));
-  window.scrollTo({top: 0, behavior: "smooth"});
-}
-$$("nav.parts [data-part]").forEach(b => b.onclick = () => showPart(b.dataset.part));
-$("#toPanel").onclick = () => showPart("panel");
+const fecha = (base, off) => { const d = new Date(base + off * DIA); return d.getUTCDate() + " " + MESES[d.getUTCMonth()]; };
+const isoDia = (base, off) => new Date(base + off * DIA).toISOString().slice(0, 10);
+const fMadrid = new Intl.DateTimeFormat("es-ES", { timeZone:"Europe/Madrid", day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23" });
+const madrid = iso => { const p = Object.fromEntries(fMadrid.formatToParts(new Date(iso)).map(x => [x.type, x.value])); return `${p.day}/${p.month} ${p.hour}:${p.minute}`; };
 
 /* =====================================================
-   PARTE 1 · FLUJO
+   DATOS SINTÉTICOS · un registro por lead
    ===================================================== */
-const STAGES = [
-  { t:"Fuentes", d:"CRM, anuncios, web, pagos", c:"s1",
-    h:"Las fuentes",
-    p:"Cada herramienta guarda una parte de la historia del contacto y ninguna tiene la foto completa.",
-    li:["CRM: contactos, formularios y oportunidades","Anuncios: inversión por campaña","Analítica web, pagos y tipos de cambio"],
-    recT:"Así llega el contacto desde el CRM", recS:"JSON en bruto",
-    rec:() => code(`<span class="c">// respuesta de la API del CRM</span>
-{
-  <span class="h">"id"</span>: <span class="s">"10482"</span>,
-  "properties": {
-    "email": <span class="s">"Contacto@Ejemplo.com "</span>,
-    "phone": <span class="s">"+34 600 00 00 00"</span>,
-    "producto": <span class="s">" producto-a "</span>,
-    "createdate": <span class="s">"2026-09-04T08:12:44.120Z"</span>,
-    "utm_source": <span class="s">"Social_Ads"</span>,
-    "utm_campaign": <span class="s">"PRODA_CAPTACION_ES"</span>
-  }
-}`) },
-  { t:"Cloud Run Jobs", d:"Extracción programada, una por fuente", c:"s2",
-    h:"Extracción con Cloud Run Jobs",
-    p:"Un proceso programado por fuente que escribe en BigQuery.",
-    li:["Sin credenciales en el código","Cada cambio desplegado queda versionado"],
-    dec:{ d:"Carga incremental: solo lo modificado desde la última ejecución, escrito por clave (MERGE). Relanzar no duplica.",
-          c:"Los borrados en origen no llegan solos: una carga completa periódica los reconcilia." },
-    recT:"Log de una ejecución", recS:"extracción del CRM",
-    rec:() => code(`<span class="c">[07:00:01]</span> extraccion-crm · inicio
-<span class="c">[07:00:01]</span> incremental desde la última ejecución
-<span class="c">[07:00:07]</span> 2 páginas · 820 contactos
-<span class="c">[07:00:10]</span> MERGE en bruto.contactos
-<span class="c">[07:00:11]</span> <span class="h">820 filas · 41 nuevas · 779 actualizadas</span>
-<span class="c">[07:00:11]</span> fin · estado OK`) },
-  { t:"BigQuery", d:"Tablas en bruto, una por fuente", c:"s3",
-    h:"BigQuery: la capa en bruto",
-    p:"Todo aterriza sin interpretar: la copia fiel de cada fuente, particionada por fecha para que leer cueste poco.",
-    li:["Textos tal cual y horas en UTC","Campos vacíos y duplicados incluidos"],
-    recT:"bruto.contactos", recS:"5 filas tal y como llegan · en color, lo que hay que arreglar",
-    rec:() => table(["id","email","producto","createdate (UTC)","utm_source","phone"],
-      [["10482",'<span class="bad">Contacto@Ejemplo.com␣</span>','<span class="bad">␣producto-a␣</span>',"2026-09-04T08:12:44Z",'<span class="bad">Social_Ads</span>',"+34 600 00 00 00"],
-       ["10483","otro@ejemplo.com",'<span class="bad">PRODUCTO A</span>',"2026-09-04T08:15:02Z","social_ads",'<span class="bad">0052 55 0000 0000</span>'],
-       ["10484","tercero@ejemplo.com",'<span class="bad">(vacío)</span>',"2026-09-04T08:19:51Z","search",'<span class="bad">—</span>'],
-       ["10485",'<span class="bad">contacto@ejemplo.com</span>','<span class="bad">Prod. A</span>',"2026-09-04T09:02:10Z",'<span class="bad">(vacío)</span>','<span class="bad">600000000</span>'],
-       ["10486","cuarto@ejemplo.com",'<span class="bad">producto_b</span>','<span class="bad">2026-09-04T22:40:05Z</span>',"newsletter","+54 9 11 0000 0000"]])
-      + `<p class="note">10482 y 10485 son la misma persona.</p>` },
-  { t:"Limpieza", d:"Normalizar, deduplicar, atribuir", c:"s4",
-    h:"Limpieza",
-    p:"Reglas escritas una vez que convierten el bruto en una fila fiable por contacto.",
-    li:["Producto y textos normalizados","País por prefijo del teléfono o IP","Hora local en lugar de UTC"],
-    dec:{ d:"Un contacto = un email normalizado; los duplicados se fusionan. El canal sale de la UTM del primer formulario.",
-          c:"Dos personas con el mismo email cuentan como una, y el mérito no se reparte entre canales." },
-    recT:"limpio.contactos", recS:"Pasa el ratón por una celda para ver la regla",
-    rec:() => {
-      const f = (v, t) => `<span class="fix" data-tip="${esc(t)}">${v}</span>`;
-      return table(["contact_id","email","producto","fecha (local)","canal","país"],
-      [["10482",f("contacto@ejemplo.com","Email en minúsculas y sin espacios · fusiona el 10485"),f("Producto A","Variante normalizada"),"04/09 10:12",f("Pago · Social","Desde la UTM, unificada"),"España"],
-       ["10483","otro@ejemplo.com",f("Producto A","Variante normalizada"),"04/09 10:15","Pago · Social",f("México","Prefijo 0052 = +52")],
-       ["10484","tercero@ejemplo.com",f("Producto A","Producto vacío: del formulario que rellenó"),"04/09 10:19","Pago · Buscador",f("España","Sin teléfono: por IP")],
-       ["10486","cuarto@ejemplo.com",f("Producto B","Variante normalizada"),f("05/09 00:40","Hora local: cambia de día"),"Orgánico · Email","Argentina"]])
-      + `<div class="sumline">5 filas en bruto <i>→</i> 4 contactos <i>·</i> 1 duplicado fusionado</div>`;
-    } },
-  { t:"Modelo de datos", d:"Dimensiones y hechos", c:"s4",
-    h:"Modelo de datos",
-    p:"Esquema en estrella: los hechos en el centro, las dimensiones alrededor. Se reconstruye solo de forma periódica.",
-    li:["Funnel: una fila por contacto × producto","Inversión y visitas comparten fecha y producto con el funnel"],
-    dec:{ d:"Claves propias estables y un grano declarado por tabla: se cuenta por contacto único y la inversión se agrega antes de cruzarla, para no contar dos veces.",
-          c:"Hay que mantener las correspondencias de identificadores, y alguna pregunta pide dos consultas en vez de un JOIN." },
-    er:true,
-    recT:"Tablas y relaciones", recS:"Pasa el ratón por una tabla para ver sus relaciones",
-    rec:() => erDiagram() },
-  { t:"Visualización", d:"Consultas agregadas y gráficos", c:"s5",
-    h:"Visualización",
-    p:"El panel lanza consultas agregadas contra el modelo y pinta tarjetas, tablas y gráficos. Nada se calcula a mano.",
-    li:["Nunca lee la capa en bruto","Mismo estilo y navegación en todas las vistas"],
-    dec:{ d:"Modelo reconstruido entero y consultas del panel en caché unos minutos: simple de auditar y rápido.",
-          c:"Los datos llegan con minutos de retraso, no en tiempo real." },
-    recT:"La consulta del panel", recS:"…y lo que devuelve",
-    rec:() => code(`<span class="h">SELECT</span> producto,
-       COUNT(DISTINCT contact_id)   <span class="h">AS</span> leads,
-       COUNTIF(oportunidad)         <span class="h">AS</span> oportunidades,
-       SUM(IF(venta, importe, 0))   <span class="h">AS</span> ingresos
-<span class="h">FROM</span>   modelo.funnel
-<span class="h">WHERE</span>  producto = <span class="s">'Producto A'</span>
-<span class="h">GROUP BY</span> producto;
-
-<span class="c">-- producto   | leads  | oportunidades | ingresos</span>
-<span class="c">-- Producto A | ${fmt(gen(PRODUCTOS[0]).leads).padStart(6)} | ${fmt(gen(PRODUCTOS[0]).opor).padStart(13)} | ${eur(gen(PRODUCTOS[0]).ingresos)}</span>`) },
-  { t:"Cloud Run service", d:"El panel publicado, con su URL", c:"s6",
-    h:"Publicación en Cloud Run",
-    p:"El panel se publica como servicio: URL estable, acceso controlado y la vista de cada producto enlazable.",
-    li:["Un servicio por panel","URL con el producto: se comparte la vista exacta"],
-    recT:"Lo que vería el equipo", recS:"URL de ejemplo",
-    rec:() => `<div class="tile"><div class="u">https://demo-plataforma-datos.run.app/#producto/A</div>
-      <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin:0">
-        <div class="kpi" style="--kc:var(--c1)"><div class="l">Leads</div><div class="v">${fmt(gen(PRODUCTOS[0]).leads)}</div></div>
-        <div class="kpi dark"><div class="l">Ingresos</div><div class="v">${eur(gen(PRODUCTOS[0]).ingresos)}</div></div>
-      </div>
-      <button class="btn" style="margin-top:12px" onclick="document.querySelector('[data-part=panel]').click()">Abrir el entregable →</button></div>` },
-];
-
-function code(s){ return `<pre class="code">${s}</pre>`; }
-function table(h, rows, chg = []){
-  return `<div class="tbl-scroll"><table><thead><tr>${h.map(x => `<th>${x}</th>`).join("")}</tr></thead>
-    <tbody>${rows.map((r, i) => `<tr class="${chg.includes(i) ? "chg" : ""}">${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-}
-const ER_T = [
-  { id:"dim_fecha",      x:225, y:8,   cols:[["fecha","PK"],["semana",""],["mes",""]] },
-  { id:"dim_producto",   x:8,   y:130, cols:[["producto_id","PK"],["nombre",""],["precio",""]] },
-  { id:"dim_canal",      x:442, y:130, cols:[["canal_id","PK"],["canal",""],["grupo",""]] },
-  { id:"funnel",         x:215, y:118, w:170, hub:true, cols:[["contact_id","FK"],["producto_id","FK"],["canal_id","FK"],["fecha_lead","FK"],["oportunidad",""],["venta",""],["importe",""]] },
-  { id:"fact_visitas",   x:8,   y:290, fact:true, cols:[["fecha","FK"],["producto_id","FK"],["visitas",""]] },
-  { id:"dim_contacto",   x:225, y:310, cols:[["contact_id","PK"],["alta",""],["pais_id","FK"]] },
-  { id:"fact_inversion", x:442, y:290, fact:true, cols:[["fecha","FK"],["producto_id","FK"],["canal_id","FK"],["importe",""]] },
-  { id:"dim_pais",       x:225, y:420, cols:[["pais_id","PK"],["pais",""],["agrupacion",""]] },
-];
-const ER_R = [["funnel","dim_fecha"],["funnel","dim_producto"],["funnel","dim_canal"],["funnel","dim_contacto"],["dim_contacto","dim_pais"],
-  ["fact_visitas","dim_producto"],["fact_visitas","dim_fecha"],["fact_inversion","dim_canal"],["fact_inversion","dim_fecha"],["fact_inversion","dim_producto"]];
-function erDiagram(){
-  const RH = 17, HH = 24;
-  const T = Object.fromEntries(ER_T.map(t => [t.id, { ...t, w:t.w || 150, h:HH + t.cols.length * RH + 6 }]));
-  let lines = "", boxes = "";
-  ER_R.forEach(([a, b]) => {
-    const A = T[a], B = T[b];
-    let p1, p2, vert = A.x < B.x + B.w && B.x < A.x + A.w;
-    if (vert){
-      const ax = A.x + A.w / 2, bx = B.x + B.w / 2, x = (Math.max(A.x, B.x) + Math.min(A.x + A.w, B.x + B.w)) / 2;
-      p1 = A.y > B.y ? [x, A.y] : [x, A.y + A.h]; p2 = A.y > B.y ? [x, B.y + B.h] : [x, B.y];
-    } else {
-      const right = A.x < B.x;
-      p1 = [right ? A.x + A.w : A.x, A.y + Math.min(A.h / 2, 40)]; p2 = [right ? B.x : B.x + B.w, B.y + Math.min(B.h / 2, 40)];
-    }
-    const mx = (p1[0] + p2[0]) / 2, my = (p1[1] + p2[1]) / 2;
-    const d = vert ? `M${p1[0]},${p1[1]} C${p1[0]},${my} ${p2[0]},${my} ${p2[0]},${p2[1]}` : `M${p1[0]},${p1[1]} C${mx},${p1[1]} ${mx},${p2[1]} ${p2[0]},${p2[1]}`;
-    const off = (p, q, k) => [p[0] + (vert ? 8 : (q[0] > p[0] ? 8 : -14)), p[1] + (vert ? (q[1] > p[1] ? 12 : -5) : -5)];
-    const nA = off(p1, p2), nB = off(p2, p1);
-    lines += `<path class="rel" data-a="${a}" data-b="${b}" d="${d}"/>
-      <text class="card-n" data-a="${a}" data-b="${b}" x="${nA[0]}" y="${nA[1]}">N</text><text class="card-n" data-a="${a}" data-b="${b}" x="${nB[0]}" y="${nB[1]}">1</text>`;
-  });
-  Object.values(T).forEach(t => {
-    const head = t.hub ? "var(--s6)" : t.fact ? "var(--s5)" : "var(--s1)", ink = t.hub || t.fact ? "#fff" : "var(--ink)";
-    boxes += `<g class="t" data-t="${t.id}"><rect class="card" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="3"/>
-      <rect x="${t.x}" y="${t.y}" width="${t.w}" height="${HH}" rx="3" fill="${head}"/><rect x="${t.x}" y="${t.y + HH - 3}" width="${t.w}" height="3" fill="${head}"/>
-      <text class="hd" x="${t.x + 10}" y="${t.y + 16}" style="fill:${ink}">${t.id}</text>
-      ${t.cols.map(([c, k], i) => `<text x="${t.x + 10}" y="${t.y + HH + 14 + i * RH}">${c}</text>${k ? `<text class="k" x="${t.x + t.w - 10}" y="${t.y + HH + 14 + i * RH}" text-anchor="end">${k}</text>` : ""}`).join("")}</g>`;
-  });
-  return `<svg class="er" id="er" viewBox="0 0 600 506" role="img" aria-label="Diagrama de tablas y relaciones">${lines}${boxes}</svg>
-    <div class="er-legend"><span><i style="background:var(--s6)"></i>Hecho principal</span><span><i style="background:var(--s5)"></i>Otros hechos</span><span><i style="background:var(--s1)"></i>Dimensiones</span><span>N → 1: muchas filas apuntan a una</span></div>`;
-}
-function erWire(){
-  const svg = $("#er"); if (!svg) return;
-  $$("g.t", svg).forEach(g => {
-    g.onmouseenter = () => {
-      const id = g.dataset.t, rel = new Set([id]);
-      svg.classList.add("focus");
-      $$("[data-a]", svg).forEach(el => { const on = el.dataset.a === id || el.dataset.b === id; el.classList.toggle("on", on); if (on){ rel.add(el.dataset.a); rel.add(el.dataset.b); } });
-      $$("g.t", svg).forEach(x => x.classList.toggle("on", rel.has(x.dataset.t)));
-    };
-    g.onmouseleave = () => { svg.classList.remove("focus"); $$(".on", svg).forEach(x => x.classList.remove("on")); };
-  });
-}
-
-/* =====================================================
-   PARTE 2 · DATOS DEL PANEL
-   ===================================================== */
+const DIAS = 16, DIAS_OP = 21, ULT = DIAS + DIAS_OP - 1;
 const PRODUCTOS = [
-  { id:"A", nombre:"Producto A", precio:1290, esc:1.00, seed:12, base:"2026-09-01", color:"var(--s6)" },
-  { id:"B", nombre:"Producto B", precio:890,  esc:0.72, seed:7,  base:"2026-09-15", color:"var(--s4)" },
-  { id:"C", nombre:"Producto C", precio:2450, esc:0.41, seed:4,  base:"2026-10-01", color:"var(--s2)" },
+  { id:"A", nombre:"Producto A", precio:1290, esc:1.00, seed:12, cplF:1.0, color:"var(--s6)", fin:29 },
+  { id:"B", nombre:"Producto B", precio:890,  esc:0.72, seed:7,  cplF:1.0, color:"var(--s4)", fin:15 },
+  { id:"C", nombre:"Producto C", precio:2450, esc:0.41, seed:4,  cplF:1.6, color:"var(--s2)", fin:1 },
 ];
+// la última fecha de cada producto (fin de la ventana de oportunidades) cae `fin` días antes de hoy
+PRODUCTOS.forEach(p => p.base = HOY - (ULT + p.fin) * DIA);
 const PAISES = ["España","México","Argentina","Resto de Europa","Otros"];
-const CANALES_PAGO = ["Social Ads","Buscador","Vídeo corto","Display"];
-const CANALES_ORG = ["Redes sociales","Afiliados","Referencias","Email","Listas","Directo"];
-const DIAS = 16, DIAS_OP = 21;
+const MERCADO = { ES:0, MX:1, AR:2, EU:3, INT:4 };
+const FUGA = { ES:[.93,.01,.01,.03,.02], MX:[.02,.88,.02,.01,.07], AR:[.02,.03,.88,.01,.06], EU:[.12,0,0,.82,.06], INT:[.03,.15,.12,.05,.65] };
+const PLATS = [{ n:"Social Ads", code:"SOC" }, { n:"Buscador", code:"SEARCH" }, { n:"Vídeo corto", code:"VIDEO" }, { n:"Display", code:"DISPLAY" }];
+const CAMP = [ // plataforma, tipo, mercado, peso, multiplicador de CPL
+  [0,"CAPTACION","ES",.30,1.0], [0,"RETARGETING","ES",.08,.7], [0,"CAPTACION","MX",.12,.6], [0,"CAPTACION","AR",.06,.5],
+  [0,"CAPTACION","EU",.06,1.5], [0,"CAPTACION","INT",.05,.8], [1,"MARCA","ES",.06,.8], [1,"GENERICA","ES",.08,1.6],
+  [1,"GENERICA","MX",.04,1.0], [2,"CAPTACION","ES",.06,1.0], [2,"CAPTACION","MX",.05,.6], [3,"RETARGETING","ES",.02,.9],
+  [3,"RETARGETING","EU",.02,1.6] ];
+const CANALES = [...PLATS.map(p => ({ n:p.n, grupo:"Pago" })), ...["Redes sociales","Afiliados","Referencias","Email","Listas","Directo"].map(n => ({ n, grupo:"Orgánico" }))];
+const NPAGO = PLATS.length;
+const ORG_W = [.34,.14,.09,.25,.06,.12];
+const CH_F = [0.95, 1.25, 0.8, 0.9, 1.1, 1.0, 1.15, 1.4, 1.3, 1.2];
+const TIPO_F = { CAPTACION:1, RETARGETING:1.3, MARCA:1.4, GENERICA:0.9 };
+const PAIS_OP = [1.15,.85,.7,1,.6], PAIS_CI = [1.2,.9,.7,1,.6];
+const DESC = [1,1,1,.9,.85];
+const LAG_OP = Array.from({ length:DIAS_OP }, (_, i) => i < 3 ? .35 + i * .3 : Math.max(.05, .95 * Math.exp(-(i - 3) / 4.5)));
+const LAG_V = [.3,.3,.2,.1,.1];
+const pick = (r, w) => { let x = r() * sum(w); for (let i = 0; i < w.length; i++){ x -= w[i]; if (x < 0) return i; } return w.length - 1; };
 
 const cache = {};
 function gen(c){
   if (cache[c.id]) return cache[c.id];
   const r = rng(c.seed * 9973);
-  const pago = [], org = [], inv = [];
-  for (let i = 0; i < DIAS; i++){
-    const ramp = 0.45 + 0.9 * (i / (DIAS - 1)) ** 1.6;
-    const spike = (i === 6 || i === 12) ? 1.35 : 1;
-    const base = 1150 * c.esc * ramp * spike * (0.85 + r() * 0.3);
-    const p = Math.round(base * (0.62 + r() * 0.08));
-    pago.push(p); org.push(Math.round(base - p));
-    inv.push(p * (4.2 + r() * 1.6));
-  }
-  const leads = pago.reduce((a, b) => a + b) + org.reduce((a, b) => a + b);
-  const inversion = inv.reduce((a, b) => a + b);
-  const visitas = Math.round(leads * (3.6 + r() * 0.8));
-  const opor = Math.round(leads * (0.04 + r() * 0.012));
-  const ventas = Math.round(opor * (0.21 + r() * 0.06));
-  const ingresos = ventas * c.precio * (0.93 + r() * 0.08);
-  // países
-  const shares = [0.52, 0.19, 0.09, 0.11, 0.09].map(s => s * (0.85 + r() * 0.3));
-  const tot = shares.reduce((a, b) => a + b);
-  const cplF = [1.25, 0.55, 0.45, 1.4, 0.7];
-  const paises = PAISES.map((p, i) => ({ p, leads:Math.round(leads * shares[i] / tot), pago:0, inv:inversion * shares[i] / tot * cplF[i], ventas:Math.round(ventas * shares[i] / tot * (i === 0 ? 1.2 : 0.85)) }));
-  paises.forEach(x => x.pago = Math.round(x.leads * (0.55 + r() * 0.2)));
-  const invTot = paises.reduce((a, b) => a + b.inv, 0);
-  paises.forEach(x => x.inv = x.inv / invTot * inversion);
-  // canales
-  const pagoTot = pago.reduce((a, b) => a + b), orgTot = leads - pagoTot;
-  const pagoSh = [0.66, 0.19, 0.11, 0.04].map(s => s * (0.8 + r() * 0.4));
-  const pst = pagoSh.reduce((a, b) => a + b);
-  const canPago = CANALES_PAGO.map((n, i) => ({ n, grupo:"Pago", leads:Math.round(pagoTot * pagoSh[i] / pst), inv:inversion * pagoSh[i] / pst * (i === 1 ? 1.3 : 1), op:Math.round(opor * 0.6 * pagoSh[i] / pst) }));
-  const ivt = canPago.reduce((a, b) => a + b.inv, 0); canPago.forEach(x => x.inv = x.inv / ivt * inversion);
-  const orgSh = [0.34, 0.14, 0.09, 0.25, 0.06, 0.12].map(s => s * (0.7 + r() * 0.6));
-  const ost = orgSh.reduce((a, b) => a + b);
-  const canOrg = CANALES_ORG.map((n, i) => ({ n, grupo:"Orgánico", leads:Math.round(orgTot * orgSh[i] / ost), inv:0, op:Math.round(opor * 0.4 * orgSh[i] / ost) }));
-  // detalle de pago por utm_campaign
-  const sufijos = ["CAPTACION","RETARGETING","SIMILARES","VIDEO"];
-  const utm = [];
-  canPago.forEach((cp, ci) => {
-    const k = ci === 3 ? 1 : ci === 2 ? 2 : 3;
-    let rest = cp.leads, restI = cp.inv;
-    for (let j = 0; j < k; j++){
-      const f = j === k - 1 ? 1 : 0.35 + r() * 0.3;
-      const l = Math.round(rest * f), iv = j === k - 1 ? restI : restI * f;
-      rest -= l; restI -= iv;
-      utm.push({ utm:`PROD${c.id}_${sufijos[(j + ci) % 4]}_${["ES","MX","AR"][j % 3]}`, plat:cp.n, leads:l, inv:Math.max(iv, 0) });
+  const camps = CAMP.map(([pl, tipo, mer, w, m]) => ({ utm:`PROD${c.id}_${PLATS[pl].code}_${tipo}_${mer}`, pl, tipo, mer, w:w * (0.8 + r() * 0.4), m:m * (0.9 + r() * 0.2) }));
+  const orgW = ORG_W.map(w => w * (0.7 + r() * 0.6));
+  const paisOrg = [.52,.19,.09,.11,.09].map(w => w * (0.85 + r() * 0.3));
+  const fp = 0.95 + r() * 0.1;
+  const leads = [], inv = [], vis = [];
+  const lead = (d, ch, utm, pais, tf) => {
+    const df = d / (DIAS - 1);
+    let op = -1, v = -1, imp = 0;
+    if (r() < 0.047 * CH_F[ch] * tf * PAIS_OP[pais] * (0.75 + 0.5 * df) * fp){
+      op = DIAS + pick(r, LAG_OP);
+      if (r() < 0.24 * PAIS_CI[pais] * (0.9 + 0.2 * df)){
+        v = Math.min(ULT, op + pick(r, LAG_V));
+        imp = Math.round(c.precio * DESC[Math.floor(r() * DESC.length)] * 100);
+      }
     }
-  });
-  // oportunidades y ventas por día tras la captación
-  const od = [], vd = [];
-  for (let i = 0; i < DIAS_OP; i++){
-    const shape = i < 3 ? 0.35 + i * 0.3 : Math.max(0.05, 0.95 * Math.exp(-(i - 3) / 4.5));
-    od.push(shape * (0.85 + r() * 0.3));
-    vd.push(shape * (i >= 2 ? 1 : 0.3) * (0.8 + r() * 0.4));
+    leads.push({ d, ch, utm, pais, op, v, imp });
+  };
+  for (let d = 0; d < DIAS; d++){
+    const ramp = 0.45 + 0.9 * (d / (DIAS - 1)) ** 1.6, spike = (d === 6 || d === 12) ? 1.35 : 1;
+    const base = 1150 * c.esc * ramp * spike * (0.85 + r() * 0.3);
+    const p = Math.round(base * (0.62 + r() * 0.08)), o = Math.round(base) - p;
+    const nC = reparto(p, camps.map(k => k.w * (0.85 + r() * 0.3)));
+    inv.push(camps.map((k, ki) => {
+      reparto(nC[ki], FUGA[k.mer]).forEach((n, pi) => { for (let x = 0; x < n; x++) lead(d, k.pl, ki, pi, TIPO_F[k.tipo]); });
+      return Math.round((nC[ki] + 0.3) * 4.6 * c.cplF * k.m * (0.85 + r() * 0.3) * 100);       // céntimos
+    }));
+    reparto(o, orgW).forEach((n, oi) => reparto(n, paisOrg).forEach((m, pi) => { for (let x = 0; x < m; x++) lead(d, NPAGO + oi, -1, pi, 1); }));
+    vis.push(Math.round((p + o) * (3.6 + r() * 0.8)));
   }
-  const so = od.reduce((a, b) => a + b), sv = vd.reduce((a, b) => a + b);
-  const oporDia = od.map(x => Math.round(x / so * opor));
-  const ventasDia = vd.map(x => Math.round(x / sv * ventas));
-  return (cache[c.id] = { pago, org, inv, leads, inversion, visitas, opor, ventas, ingresos, paises, canPago, canOrg, utm, oporDia, ventasDia });
+  return (cache[c.id] = { camps, leads, inv, vis });
 }
 
-/* ---------- flujo (usa las cifras del panel para que cuadren) ---------- */
+/* Todo lo que pinta el panel sale de aquí: sumas de registros, así que cada desglose suma su total.
+   Periodo = cohorte de día de lead; la inversión y las visitas, de los días del periodo. */
+function agg(c, per){
+  const g = gen(c), from = per === "d7" ? DIAS - 7 : 0;
+  const A = { from, pago:[], org:[], inv:[], vis:[], leads:0, pagoL:0, orgL:0, inversion:0, visitas:0, opor:0, ventas:0, ingresos:0,
+    pais:PAISES.map(p => ({ p, leads:0, pago:0, inv:0, op:0, ven:0 })),
+    canal:CANALES.map(k => ({ ...k, leads:0, inv:0, op:0, ven:0 })),
+    utm:g.camps.map(k => ({ utm:k.utm, plat:PLATS[k.pl].n, leads:0, inv:0, op:0 })),
+    oporDia:Array(DIAS_OP).fill(0), ventasDia:Array(DIAS_OP).fill(0), ingDia:Array(DIAS_OP).fill(0) };
+  for (let d = from; d < DIAS; d++){
+    const iv = sum(g.inv[d]);
+    A.pago.push(0); A.org.push(0); A.inv.push(iv); A.vis.push(g.vis[d]); A.inversion += iv; A.visitas += g.vis[d];
+    g.inv[d].forEach((x, k) => { A.utm[k].inv += x; A.canal[g.camps[k].pl].inv += x; A.pais[MERCADO[g.camps[k].mer]].inv += x; });
+  }
+  for (const l of g.leads){
+    if (l.d < from) continue;
+    const i = l.d - from, pago = l.utm >= 0;
+    A.leads++; A.pais[l.pais].leads++; A.canal[l.ch].leads++;
+    if (pago){ A.pagoL++; A.pago[i]++; A.utm[l.utm].leads++; A.pais[l.pais].pago++; } else { A.orgL++; A.org[i]++; }
+    if (l.op >= 0){ A.opor++; A.oporDia[l.op - DIAS]++; A.pais[l.pais].op++; A.canal[l.ch].op++; if (pago) A.utm[l.utm].op++; }
+    if (l.v >= 0){ A.ventas++; A.ventasDia[l.v - DIAS]++; A.ingDia[l.v - DIAS] += l.imp; A.ingresos += l.imp; A.pais[l.pais].ven++; A.canal[l.ch].ven++; }
+  }
+  return A;
+}
+
+/* ---------- tooltips: cursor, toque y foco ---------- */
+const tip = $("#tip");
+let tipEl = null;
+function colocar(x, y){
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(x + 12, innerWidth - w - 8)) + "px";
+  let t = y - h - 10; if (t < 8) t = y + 18;
+  tip.style.top = Math.min(t, innerHeight - h - 8) + "px";
+}
+function showTip(el, x, y){
+  if (tipEl !== el){ tip.innerHTML = el.getAttribute("data-tip"); tipEl = el; }
+  tip.classList.add("on"); colocar(x, y);
+}
+function tipAtEl(el){ const r = el.getBoundingClientRect(); showTip(el, r.left + Math.min(r.width / 2, 120) - 12, r.top); }
+function hideTip(){ tip.classList.remove("on"); tipEl = null; }
+document.addEventListener("pointermove", e => {
+  if (e.pointerType !== "mouse") return;
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (t) showTip(t, e.clientX, e.clientY);
+  else if (tipEl && document.activeElement !== tipEl) hideTip();
+});
+document.addEventListener("pointerdown", e => {
+  if (e.pointerType === "mouse") return;
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (t) tipAtEl(t); else hideTip();
+});
+document.addEventListener("focusin", e => {
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (t){ t.setAttribute("aria-describedby", "tip"); tipAtEl(t); }
+});
+document.addEventListener("focusout", e => { if (tipEl && (e.target === tipEl || e.target.contains(tipEl))) hideTip(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+addEventListener("scroll", () => { if (tipEl && document.activeElement !== tipEl) hideTip(); }, { passive:true });
+
+/* ---------- pestañas con el patrón ARIA (flechas, Inicio, Fin) ---------- */
+function tablist(list, onSelect){
+  list.addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) onSelect(b); });
+  list.addEventListener("keydown", e => {
+    const tabs = $$("[role=tab]", list), i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    const j = e.key === "ArrowRight" ? (i + 1) % tabs.length : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+    if (j < 0) return;
+    e.preventDefault(); tabs[j].focus(); onSelect(tabs[j]);
+  });
+}
+function marcar(list, key, val){
+  $$("[role=tab]", list).forEach(b => { const on = b.dataset[key] === val; b.setAttribute("aria-selected", on); b.tabIndex = on ? 0 : -1; });
+}
+
+/* ---------- partes y enlace (#flujo/3, #producto/A/paises/7d, #resumen) ---------- */
+let parte = "flujo", paso = 0, tabActual = "producto";
+const TABS = ["resumen","producto","paises","adquisicion","oportunidades"];
+function escribirHash(){
+  const h = parte === "flujo" ? `#flujo/${paso + 1}` : tabActual === "resumen" ? "#resumen"
+    : `#producto/${sel.value}/${tabActual}${selPer.value === "d7" ? "/7d" : ""}`;
+  if (location.hash !== h) history.replaceState(null, "", h);
+}
+function showPart(p, escribir = true){
+  stop();
+  parte = p;
+  marcar($("#partTabs"), "part", p);
+  $$("section.part").forEach(s => s.classList.toggle("on", s.id === "part-" + p));
+  if (p === "panel") render();
+  if (escribir){ escribirHash(); window.scrollTo({ top:$("nav.parts").offsetTop, behavior:suave() }); }
+}
+tablist($("#partTabs"), b => showPart(b.dataset.part));
+$("#toPanel").onclick = () => showPart("panel");
+
+/* =====================================================
+   PARTE 1 · FLUJO
+   ===================================================== */
+const PA = PRODUCTOS[0];
+const REC_DIA = isoDia(PA.base, 3);            // el lead 10482 entra el cuarto día de captación del Producto A
+const TS = { a:`${REC_DIA}T08:12:44Z`, b:`${REC_DIA}T08:15:02Z`, c:`${REC_DIA}T08:19:51Z`, d:`${REC_DIA}T09:02:10Z`, e:`${REC_DIA}T23:10:05Z` };
+const totA = () => agg(PA, "toda");
+const BYTES_FILA = 37;                         // contact_id, producto_id, fecha_oportunidad e importe
+
+const STAGES = [
+  { t:"Fuentes", d:"CRM, anuncios, web, pagos", c:"s1",
+    h:"Las fuentes",
+    p:"Cada herramienta guarda una parte de la historia del contacto y ninguna tiene la foto completa.",
+    li:["CRM: contactos, formularios y oportunidades","Anuncios: inversión por campaña","Analítica web, pagos y tipos de cambio"],
+    dec:{ d:"El email normalizado es la clave para unir CRM, formularios y pagos; los anuncios se unen por utm_campaign.",
+          c:"Lo que llega sin email ni UTM (una venta por teléfono, un enlace sin etiquetar) cae en «Directo» o se corrige a mano." },
+    recT:"Así llega el contacto desde el CRM", recS:"JSON en bruto",
+    rec:() => code(`<span class="c">// respuesta de la API del CRM</span>
+{
+  "id": <span class="s">"10482"</span>,
+  "properties": {
+    "email": <span class="s">"Contacto@Ejemplo.com "</span>,
+    "phone": <span class="s">"+34 600 00 00 00"</span>,
+    "producto": <span class="s">" producto-a "</span>,
+    "createdate": <span class="s">"${TS.a.replace("Z", ".120Z")}"</span>,
+    "utm_source": <span class="s">"Social_Ads"</span>,
+    "utm_medium": <span class="s">"paid"</span>,
+    "utm_campaign": <span class="s">"PRODA_SOC_CAPTACION_ES"</span>
+  }
+}`) },
+  { t:"Cloud Run Jobs", d:"Cloud Scheduler lanza un job por fuente", c:"s2",
+    h:"Extracción con Cloud Run Jobs",
+    p:"Cloud Scheduler lanza un job por fuente; cada job lee la API y escribe en BigQuery.",
+    li:["Sin credenciales en el código: cuenta de servicio y secretos gestionados","Cada cambio desplegado queda versionado"],
+    dec:{ d:"Carga incremental: solo lo modificado desde la última ejecución, escrito por clave (MERGE). Relanzar no duplica.",
+          c:"Los borrados en origen no llegan solos: una carga completa periódica los reconcilia.",
+          k:"Un job solo se paga mientras corre: segundos por ejecución." },
+    recT:"Log de una ejecución", recS:"extracción del CRM",
+    rec:() => code(`<span class="c">[07:00:00]</span> Cloud Scheduler → extraccion-crm
+<span class="c">[07:00:01]</span> incremental desde la última ejecución
+<span class="c">[07:00:07]</span> 2 páginas · 820 contactos
+<span class="c">[07:00:10]</span> MERGE en bruto.contactos
+<span class="c">[07:00:11]</span> <span class="h">820 filas · 41 nuevas · 779 actualizadas</span>
+<span class="c">[07:00:11]</span> fin · estado OK`) + sql(`<span class="h">MERGE</span> bruto.contactos <span class="h">AS</span> t
+<span class="h">USING</span> tmp.contactos_lote <span class="h">AS</span> s
+<span class="h">ON</span> t.id = s.id
+<span class="h">WHEN MATCHED AND</span> s.updated_at > t.updated_at <span class="h">THEN</span>
+  <span class="h">UPDATE SET</span> email = s.email, producto = s.producto, phone = s.phone,
+             utm_source = s.utm_source, utm_medium = s.utm_medium,
+             updated_at = s.updated_at
+<span class="h">WHEN NOT MATCHED THEN</span>
+  <span class="h">INSERT ROW</span>;`) },
+  { t:"BigQuery", d:"Capa en bruto, una tabla por fuente", c:"s3", wide:true,
+    h:"BigQuery: la capa en bruto",
+    p:"Todo aterriza sin interpretar: la copia fiel de cada fuente. La limpieza y el modelo también viven en BigQuery, en sus propios datasets.",
+    li:["Textos tal cual y horas en UTC (TIMESTAMP)","Una fila por id: los duplicados son de personas, no de filas"],
+    dec:{ d:"Bruto sin reglas de negocio: cualquier capa se puede reconstruir desde aquí sin volver a llamar a la API.",
+          c:"Se paga almacenamiento por guardarlo todo; las particiones que no cambian en 90 días pasan solas a almacenamiento de largo plazo, más barato.",
+          k:"Partición por fecha de alta y clustering por id: leer un día lee ese día, no la tabla entera." },
+    recT:"bruto.contactos", recS:"5 filas tal y como llegan · subrayado, lo que hay que arreglar",
+    rec:() => table(["id","email","producto","createdate (UTC)","utm_source","utm_medium","phone"],
+      [["10482",bad("Contacto@Ejemplo.com␣"),bad("␣producto-a␣"),TS.a,bad("Social_Ads"),"paid","+34 600 00 00 00"],
+       ["10483","otro@ejemplo.com",bad("PRODUCTO A"),TS.b,"social_ads",bad("Paid"),bad("0052 55 0000 0000")],
+       ["10484","tercero@ejemplo.com",bad("(vacío)"),TS.c,"search","cpc",bad("—")],
+       ["10485",bad("contacto@ejemplo.com"),bad("Prod. A"),TS.d,bad("(vacío)"),bad("(vacío)"),bad("600000000")],
+       ["10486","cuarto@ejemplo.com",bad("producto_b"),bad(TS.e),"newsletter","email","+54 9 11 0000 0000"]])
+      + `<p class="note">10482 y 10485 son la misma persona.</p>` + sql(`<span class="h">CREATE TABLE IF NOT EXISTS</span> bruto.contactos (
+  id           STRING <span class="h">NOT NULL</span>,
+  email        STRING,
+  producto     STRING,
+  phone        STRING,
+  utm_source   STRING,
+  utm_medium   STRING,
+  utm_campaign STRING,
+  createdate   TIMESTAMP,   <span class="c">-- siempre UTC</span>
+  updated_at   TIMESTAMP
+)
+<span class="h">PARTITION BY</span> DATE(createdate)
+<span class="h">CLUSTER BY</span> id;`) },
+  { t:"Limpieza", d:"Normalizar, deduplicar, atribuir", c:"s3", wide:true,
+    h:"Limpieza",
+    p:"Reglas escritas una vez que convierten el bruto en una fila fiable por contacto.",
+    li:["Producto y textos normalizados","País por prefijo del teléfono o IP","Hora de referencia Europe/Madrid en lugar de UTC"],
+    dec:{ d:"Un contacto = un email normalizado; los duplicados se fusionan. El canal sale de la UTM del primer formulario.",
+          c:"Dos personas con el mismo email cuentan como una, y el mérito no se reparte entre canales." },
+    recT:"limpio.contactos", recS:"El número de cada celda remite a su regla",
+    rec:() => {
+      const R = ["Email en minúsculas y sin espacios. Mismo email = mismo contacto: el 10485 se fusiona con el 10482, que conserva su primer formulario y su UTM.",
+        "Producto normalizado desde sus variantes («␣producto-a␣», «PRODUCTO A», «Prod. A», «producto_b»).",
+        "Producto vacío: se toma del formulario que rellenó.",
+        "Canal desde utm_source + utm_medium, con nombres unificados; si la URL no trae UTM, de los campos ocultos del formulario.",
+        "País por el prefijo del teléfono (0052 = +52 → México); sin teléfono, por IP.",
+        "Hora de referencia Europe/Madrid: las 23:10 UTC ya son el día siguiente en Madrid, y el lead cuenta ese día."];
+      const f = (v, n) => `<span class="fix" tabindex="0" data-tip="${esc("Regla " + n + ": " + R[n - 1])}">${v}<sup>${n}</sup></span>`;
+      return table(["contact_id","email","producto","fecha (Madrid)","canal","país"],
+      [["10482",f("contacto@ejemplo.com",1),f("Producto A",2),madrid(TS.a),f("Pago · Social Ads",4),"España"],
+       ["10483","otro@ejemplo.com",f("Producto A",2),madrid(TS.b),f("Pago · Social Ads",4),f("México",5)],
+       ["10484","tercero@ejemplo.com",f("Producto A",3),madrid(TS.c),f("Pago · Buscador",4),f("España",5)],
+       ["10486","cuarto@ejemplo.com",f("Producto B",2),f(madrid(TS.e),6),"Orgánico · Email","Argentina"]])
+      + `<ol class="rules" aria-label="Reglas aplicadas">${R.map((x, i) => `<li><span aria-hidden="true">${i + 1}</span><div><span class="sr">Regla ${i + 1}: </span>${esc(x)}</div></li>`).join("")}</ol>`
+      + `<div class="sumline">5 filas en bruto <i>→</i> 4 contactos <i>·</i> 1 duplicado fusionado</div>`
+      + sql(`<span class="h">WITH</span> base <span class="h">AS</span> (
+  <span class="h">SELECT</span>
+    id,
+    LOWER(TRIM(email))                      <span class="h">AS</span> email,
+    producto_normalizado(producto)          <span class="h">AS</span> producto,  <span class="c">-- UDF</span>
+    DATETIME(createdate, <span class="s">'Europe/Madrid'</span>)   <span class="h">AS</span> fecha_madrid,
+    canal_desde_utm(utm_source, utm_medium) <span class="h">AS</span> canal,     <span class="c">-- UDF</span>
+    createdate
+  <span class="h">FROM</span> bruto.contactos
+)
+<span class="h">SELECT</span> * <span class="h">EXCEPT</span> (n)
+<span class="h">FROM</span> (
+  <span class="h">SELECT</span> *, ROW_NUMBER() <span class="h">OVER</span> (<span class="h">PARTITION BY</span> email <span class="h">ORDER BY</span> createdate) <span class="h">AS</span> n
+  <span class="h">FROM</span> base
+)
+<span class="h">WHERE</span> n = 1;  <span class="c">-- se queda el primer registro: id, formulario y UTM originales</span>`);
+    } },
+  { t:"Modelo de datos", d:"Hechos y dimensiones", c:"s4", lento:true,
+    h:"Modelo de datos",
+    p:"Modelo dimensional en constelación: tres tablas de hechos que comparten dimensiones; el país cuelga del contacto. Se reconstruye automáticamente cada hora.",
+    li:["funnel: una fila por contacto × producto, con la fecha de cada evento (lead, oportunidad, venta)","fact_inversion: por día, producto, canal, campaña y mercado (el país al que apunta la campaña)","dim_fecha hace tres papeles en el funnel: fecha del lead, de la oportunidad y de la venta"],
+    dec:{ d:"Claves propias estables y un grano declarado por tabla: se cuenta por contacto único y la inversión se agrega antes de cruzarla, para no contar dos veces.",
+          c:"Hay que mantener las correspondencias de identificadores, y alguna pregunta pide dos consultas en vez de un JOIN." },
+    er:true,
+    recT:"Tablas y relaciones", recS:"Toca, enfoca o pasa el cursor por una tabla para ver sus relaciones",
+    rec:() => erDiagram() },
+  { t:"Calidad", d:"Tests, frescura, alertas y coste", c:"s4", lento:true,
+    h:"Calidad y vigilancia",
+    p:"Después de cada reconstrucción, unos tests comprueban que el modelo dice la verdad antes de que nadie lo mire.",
+    li:["Grano: una fila por contacto × producto","Coherencia: venta ≥ oportunidad ≥ lead; la inversión cuadra con las plataformas","Frescura de cada fuente y alerta si falla un test o un job"],
+    dec:{ d:"Tests de grano, de coherencia y de cuadre contra la fuente en cada reconstrucción; si algo falla, salta una alerta con el test y las filas afectadas.",
+          c:"Cada test es una consulta más: se limitan a las particiones nuevas para que su coste no crezca con el histórico.",
+          k:"Antes de cada consulta pesada, un dry run estima los bytes que leerá; por encima de un umbral (p. ej. 20 GB) pide confirmación." },
+    recT:"Tests tras la reconstrucción", recS:"Producto A · comprobados sobre los datos de esta página",
+    rec:() => {
+      const g = gen(PA), A = totA();
+      const dup = g.leads.length - A.leads;                                // un registro por contacto y producto
+      const orden = g.leads.filter(l => (l.v >= 0 && (l.op < 0 || l.v < l.op)) || (l.op >= 0 && l.op < DIAS)).length;
+      const invFuente = sum(g.inv.map(sum));
+      const ok = b => b ? `<span class="ok">✓</span>` : "✗";
+      return code(`<span class="c">[08:05:12]</span> tests · modelo.funnel, modelo.fact_inversion
+${ok(dup === 0)} grano: 1 fila por contact_id × producto_id · ${dup} duplicados
+${ok(orden === 0)} orden: fecha_venta ≥ fecha_oportunidad ≥ fecha_lead · ${orden} filas fuera
+${ok(A.inversion === invFuente)} cuadre: inversión ${E(A.inversion, 2)} = plataformas ${E(invFuente, 2)}
+${ok(true)} frescura: última carga del CRM hace 12 min · umbral 2 h
+${ok(true)} coste: dry run ${fmt(A.leads * BYTES_FILA / 1e6, 1)} MB · umbral 20 GB
+<span class="c">[08:05:19]</span> <span class="h">5 de 5 OK</span> · si alguno falla → alerta al canal de datos`) + sql(`<span class="c">-- grano: una fila por contacto y producto (debe devolver 0 filas)</span>
+<span class="h">SELECT</span> contact_id, producto_id, COUNT(*) <span class="h">AS</span> n
+<span class="h">FROM</span> modelo.funnel
+<span class="h">GROUP BY</span> contact_id, producto_id
+<span class="h">HAVING</span> n > 1;`);
+    } },
+  { t:"Visualización", d:"Consultas agregadas y gráficos", c:"s5", lento:true,
+    h:"Visualización",
+    p:"El panel lanza consultas agregadas contra el modelo y pinta tarjetas, tablas y gráficos. Nada se calcula a mano.",
+    li:["Nunca lee la capa en bruto","Mismo estilo y navegación en todas las vistas"],
+    dec:{ d:"Modelo reconstruido entero y consultas del panel en caché 10 minutos: simple de auditar y rápido.",
+          c:"Los datos llegan con minutos de retraso, no en tiempo real.",
+          k:"Con la caché, cada vista lanza como mucho 6 consultas por hora, la abra quien la abra. La del ejemplo lee unos " + fmt(PRODUCTOS.reduce((a, p) => a + gen(p).leads.length, 0) * BYTES_FILA / 1e6, 1) + " MB (BigQuery cobra un mínimo de 10 MB por tabla). En producción, hasta −78 % de consumo de BigQuery en los procesos más pesados." },
+    recT:"La consulta del panel", recS:"…y lo que devuelve",
+    rec:() => { const A = totA(); return code(`<span class="h">SELECT</span>
+  p.nombre                                  <span class="h">AS</span> producto,
+  COUNT(DISTINCT f.contact_id)              <span class="h">AS</span> leads,
+  COUNTIF(f.fecha_oportunidad <span class="h">IS NOT NULL</span>)  <span class="h">AS</span> oportunidades,
+  SUM(f.importe)                            <span class="h">AS</span> ingresos
+<span class="h">FROM</span>   modelo.funnel <span class="h">AS</span> f
+<span class="h">JOIN</span>   modelo.dim_producto <span class="h">AS</span> p <span class="h">USING</span> (producto_id)
+<span class="h">WHERE</span>  f.producto_id = <span class="s">'A'</span>
+<span class="h">GROUP BY</span> producto;
+
+<span class="c">-- producto   | leads | oportunidades | ingresos</span>
+<span class="c">-- Producto A | ${String(A.leads).padStart(5)} | ${String(A.opor).padStart(13)} | ${(A.ingresos / 100).toFixed(2)}</span>`); } },
+  { t:"Cloud Run service", d:"El panel publicado, con su URL", c:"s6",
+    h:"Publicación en Cloud Run",
+    p:"El panel se publica como servicio: URL estable, acceso con la cuenta de la empresa y cada vista enlazable.",
+    li:["Un servicio por panel: contenedor pequeño con caché","La URL lleva producto y pestaña: se comparte la vista exacta (pruébalo en esta página)"],
+    dec:{ d:"Un servicio por panel, desplegado desde el repo, con acceso restringido y escalado a cero.",
+          c:"La primera visita tras un rato sin uso tarda unos segundos (arranque en frío).",
+          k:"Escala a cero: sin visitas no hay instancias encendidas ni coste de cómputo." },
+    recT:"Lo que vería el equipo", recS:"URL de ejemplo",
+    rec:() => { const A = totA(); return `<div class="tile"><div class="u">https://panel-producto-6k2x9qd3la-ew.a.run.app/#producto/A/producto</div>
+      <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin:0">
+        <div class="kpi" style="--kc:var(--c1)"><div class="l">Leads</div><div class="v">${fmt(A.leads)}</div></div>
+        <div class="kpi dark"><div class="l">Ingresos</div><div class="v">${E(A.ingresos)}</div></div>
+      </div>
+      <a class="btn" style="margin-top:12px;display:inline-block;text-decoration:none" href="#producto/A/producto">Abrir el entregable →</a></div>`; } },
+];
+
+function code(s){ return `<pre class="code" tabindex="0">${s}</pre>`; }
+function sql(s){ return `<details class="sql"><summary>Ver el SQL</summary>${code(s)}</details>`; }
+function bad(s){ return `<span class="bad">${s}</span>`; }
+function table(h, rows){
+  return `<div class="tbl-scroll"><table><thead><tr>${h.map(x => `<th scope="col">${x}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ---------- diagrama de tablas ---------- */
+const ER_T = [
+  { id:"funnel",         x:8,   y:10,  w:180, hub:true, cols:[["contact_id","FK"],["producto_id","FK"],["canal_id","FK"],["fecha_lead","FK"],["fecha_oportunidad","FK"],["fecha_venta","FK"],["importe",""]] },
+  { id:"dim_contacto",   x:8,   y:250, cols:[["contact_id","PK"],["alta",""],["pais_id","FK"]] },
+  { id:"dim_fecha",      x:255, y:10,  cols:[["fecha","PK"],["semana",""],["mes",""]] },
+  { id:"dim_producto",   x:255, y:120, cols:[["producto_id","PK"],["nombre",""],["precio",""]] },
+  { id:"dim_canal",      x:255, y:230, cols:[["canal_id","PK"],["canal",""],["grupo",""]] },
+  { id:"dim_pais",       x:255, y:340, cols:[["pais_id","PK"],["pais",""],["agrupacion",""]] },
+  { id:"fact_inversion", x:472, y:10,  fact:true, cols:[["fecha","FK"],["producto_id","FK"],["canal_id","FK"],["pais_id","FK"],["utm_campaign",""],["importe",""]] },
+  { id:"fact_visitas",   x:472, y:270, fact:true, cols:[["fecha","FK"],["producto_id","FK"],["visitas",""]] },
+];
+const ER_R = [ // tabla, columna → tabla, columna
+  ["funnel","contact_id","dim_contacto","contact_id"], ["funnel","producto_id","dim_producto","producto_id"], ["funnel","canal_id","dim_canal","canal_id"],
+  ["funnel","fecha_lead","dim_fecha","fecha"], ["funnel","fecha_oportunidad","dim_fecha","fecha"], ["funnel","fecha_venta","dim_fecha","fecha"],
+  ["dim_contacto","pais_id","dim_pais","pais_id"],
+  ["fact_inversion","fecha","dim_fecha","fecha"], ["fact_inversion","producto_id","dim_producto","producto_id"], ["fact_inversion","canal_id","dim_canal","canal_id"], ["fact_inversion","pais_id","dim_pais","pais_id"],
+  ["fact_visitas","fecha","dim_fecha","fecha"], ["fact_visitas","producto_id","dim_producto","producto_id"] ];
+function erDiagram(){
+  const RH = 17, HH = 24;
+  const T = Object.fromEntries(ER_T.map(t => [t.id, { ...t, w:t.w || 150, h:HH + t.cols.length * RH + 6 }]));
+  const rowY = (t, col) => t.y + HH + 10 + t.cols.findIndex(c => c[0] === col) * RH;
+  let lines = "", boxes = "";
+  ER_R.forEach(([a, ca, b, cb]) => {
+    const A = T[a], B = T[b];
+    let d, nA, nB;
+    if (A.x < B.x + B.w && B.x < A.x + A.w){            // misma columna: línea vertical
+      const x = (Math.max(A.x, B.x) + Math.min(A.x + A.w, B.x + B.w)) / 2, y1 = A.y + A.h, y2 = B.y;
+      d = `M${x},${y1} L${x},${y2}`; nA = [x + 6, y1 + 12]; nB = [x + 6, y2 - 4];
+    } else {
+      const der = A.x < B.x, x1 = der ? A.x + A.w : A.x, x2 = der ? B.x : B.x + B.w, y1 = rowY(A, ca), y2 = rowY(B, cb), mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+      nA = [x1 + (der ? 4 : -11), y1 - 4]; nB = [x2 + (der ? -9 : 4), y2 - 4];
+    }
+    lines += `<path class="rel" data-a="${a}" data-b="${b}" d="${d}"/>
+      <text class="card-n" data-a="${a}" data-b="${b}" x="${nA[0]}" y="${nA[1]}">N</text><text class="card-n" data-a="${a}" data-b="${b}" x="${nB[0]}" y="${nB[1]}">1</text>`;
+  });
+  Object.values(T).forEach(t => {
+    const head = t.hub ? "var(--s6)" : t.fact ? "var(--s45)" : "var(--s1)", ink = t.hub || t.fact ? "#fff" : "var(--ink)";
+    const rel = [...new Set(ER_R.filter(r => r[0] === t.id || r[2] === t.id).map(r => r[0] === t.id ? r[2] : r[0]))];
+    boxes += `<g class="t" data-t="${t.id}" tabindex="0" role="button" aria-label="${t.id}: ${t.cols.map(c => c[0] + (c[1] ? " " + c[1] : "")).join(", ")}. Se relaciona con ${rel.join(", ")}"><rect class="box" x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" rx="3"/>
+      <rect x="${t.x}" y="${t.y}" width="${t.w}" height="${HH}" rx="3" fill="${head}"/><rect x="${t.x}" y="${t.y + HH - 3}" width="${t.w}" height="3" fill="${head}"/>
+      <text class="hd" x="${t.x + 10}" y="${t.y + 16}" style="fill:${ink}">${t.id}</text>
+      ${t.cols.map(([c, k], i) => `<text x="${t.x + 10}" y="${t.y + HH + 14 + i * RH}">${c}</text>${k ? `<text class="k" x="${t.x + t.w - 10}" y="${t.y + HH + 14 + i * RH}" text-anchor="end">${k}</text>` : ""}`).join("")}</g>`;
+  });
+  return `<div class="er-wrap"><svg class="er" id="er" viewBox="0 0 630 430" role="group" aria-label="Diagrama de tablas y relaciones del modelo">${lines}${boxes}</svg></div>
+    <div class="er-legend"><span><i style="background:var(--s6)"></i>Hecho principal</span><span><i style="background:var(--s45)"></i>Otros hechos</span><span><i style="background:var(--s1)"></i>Dimensiones</span><span>N → 1: muchas filas apuntan a una</span></div>`;
+}
+function erWire(){
+  const svg = $("#er"); if (!svg) return;
+  const on = id => {
+    const rel = new Set([id]);
+    svg.classList.add("focus");
+    $$("[data-a]", svg).forEach(el => { const m = el.dataset.a === id || el.dataset.b === id; el.classList.toggle("on", m); if (m){ rel.add(el.dataset.a); rel.add(el.dataset.b); } });
+    $$("g.t", svg).forEach(x => x.classList.toggle("on", rel.has(x.dataset.t)));
+    svg.dataset.sel = id;
+  };
+  const off = () => { svg.classList.remove("focus"); $$(".on", svg).forEach(x => x.classList.remove("on")); delete svg.dataset.sel; };
+  $$("g.t", svg).forEach(g => {
+    g.addEventListener("pointerenter", e => { if (e.pointerType === "mouse") on(g.dataset.t); });
+    g.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") off(); });
+    g.addEventListener("focus", () => on(g.dataset.t));
+    g.addEventListener("blur", off);
+    g.addEventListener("click", e => { if (svg.dataset.sel === g.dataset.t && e.pointerType !== "mouse") off(); else on(g.dataset.t); });
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); on(g.dataset.t); } });
+  });
+}
+
+/* ---------- pasos ---------- */
 const flow = $("#flow");
-flow.innerHTML = STAGES.map((s, i) => `<button class="node" style="--acc:var(--${s.c});--accs:color-mix(in srgb, var(--${s.c}) 22%, white)" aria-pressed="${i === 0}" data-i="${i}">
-  <span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t">${s.t}</span><span class="d">${s.d}</span></button>`).join("");
-function select(i){
-  $$(".node", flow).forEach((n, j) => n.setAttribute("aria-pressed", j === i));
+flow.innerHTML = STAGES.map((s, i) => `<button class="node" style="--acc:var(--${s.c});--accs:color-mix(in srgb, var(--${s.c}) 22%, white)" data-i="${i}" aria-label="Paso ${i + 1} de ${STAGES.length}: ${s.t}">
+  <span class="n" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span><span class="t">${s.t}</span><span class="d">${s.d}</span></button>`).join("");
+function select(i, escribir = false){
+  paso = i;
+  $$(".node", flow).forEach((n, j) => j === i ? n.setAttribute("aria-current", "step") : n.removeAttribute("aria-current"));
   const s = STAGES[i];
   const info = $("#stageInfo");
   info.style.setProperty("--acc", `var(--${s.c})`); info.style.setProperty("--accs", `color-mix(in srgb, var(--${s.c}) 22%, white)`);
-  info.innerHTML = `<div class="eyebrow">Paso ${i + 1} de 7</div><h2>${s.h}</h2><p>${s.p}</p>
+  info.innerHTML = `<div class="eyebrow">Paso ${i + 1} de ${STAGES.length}</div><h2>${s.h}</h2><p>${s.p}</p>
     <ul class="bul">${s.li.map(x => `<li>${x}</li>`).join("")}</ul>
-    ${s.dec ? `<div class="dec-in"><div><b>Decisión</b>${s.dec.d}</div><div><b>Compromiso</b>${s.dec.c}</div></div>` : ""}`;
+    <div class="dec-in"><div><b>Decisión</b>${s.dec.d}</div><div><b>Compromiso</b>${s.dec.c}</div>${s.dec.k ? `<div class="cost"><b>Coste</b>${s.dec.k}</div>` : ""}</div>`;
   $("#stageRec").innerHTML = `<div class="rec-head"><h3 style="margin:0">${s.recT}</h3><span class="hint">${s.recS}</span></div>${s.rec()}`;
-  $(".detail").classList.toggle("wide", !!s.er);
+  $(".detail").classList.toggle("wide", !!(s.er || s.wide));
   erWire();
-  $("#playHint").textContent = `Paso ${i + 1} de 7`;
+  $("#playHint").textContent = `Paso ${i + 1} de ${STAGES.length}: ${s.t}`;
+  if (escribir) escribirHash();
 }
-flow.addEventListener("click", e => { const n = e.target.closest(".node"); if (n){ stop(); select(+n.dataset.i); } });
+flow.addEventListener("click", e => {
+  const n = e.target.closest(".node"); if (!n) return;
+  stop(); select(+n.dataset.i, true);
+  if (movil()) $("#stageInfo").scrollIntoView({ behavior:suave(), block:"start" });
+});
 let timer = null;
-function stop(){ clearInterval(timer); timer = null; $("#play").textContent = "▶ Recorrer el flujo"; }
-$("#play").onclick = () => {
-  if (timer) return stop();
-  let i = 0; select(0); pulse(0);
-  $("#play").textContent = "❚❚ Pausa";
-  timer = setInterval(() => { i++; if (i >= STAGES.length) return stop(); select(i); pulse(i); }, 2600);
-};
-function pulse(i){ const n = $$(".node", flow)[i]; n.classList.remove("pulse"); void n.offsetWidth; n.classList.add("pulse"); }
-select(0);
-
-function periodo(d){
-  const from = $("#selPeriodo").value === "d7" ? DIAS - 7 : 0;
-  const pago = d.pago.slice(from), org = d.org.slice(from), inv = d.inv.slice(from);
-  const k = (pago.reduce((a, b) => a + b) + org.reduce((a, b) => a + b)) / d.leads;
-  return { pago, org, inv, from, k };
+const playBtn = $("#play");
+function stop(){ clearTimeout(timer); timer = null; playBtn.textContent = "▶ Recorrer el flujo"; playBtn.setAttribute("aria-pressed", "false"); }
+function avanzar(i){
+  select(i, true); pulse(i);
+  if (movil()) $("#stageInfo").scrollIntoView({ behavior:suave(), block:"start" });
+  timer = setTimeout(() => { if (i + 1 >= STAGES.length) return stop(); avanzar(i + 1); }, STAGES[i].lento ? 6000 : 3500);
 }
+playBtn.onclick = () => {
+  if (timer) return stop();
+  playBtn.textContent = "❚❚ Pausa"; playBtn.setAttribute("aria-pressed", "true");
+  avanzar(0);
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
+function pulse(i){ const n = $$(".node", flow)[i]; n.classList.remove("pulse"); void n.offsetWidth; n.classList.add("pulse"); }
 
-/* ---------- gráficos SVG ---------- */
+/* =====================================================
+   PARTE 2 · GRÁFICOS
+   ===================================================== */
+function eje(max){
+  const raw = Math.max(max, 1e-9) / 4, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+  return { step, n:Math.max(1, Math.ceil(max / step - 1e-9)) };
+}
+function etiqueta(v, step, suf = ""){
+  const dec = s => (Math.abs(s - Math.round(s)) < 1e-9 ? 0 : Math.abs(s * 10 - Math.round(s * 10)) < 1e-9 ? 1 : 2);
+  if (step >= 1e6) return fmt(v / 1e6, dec(step / 1e6)) + " M" + suf;
+  if (step >= 1e3) return fmt(v / 1e3, dec(step / 1e3)) + " k" + suf;
+  return fmt(v, dec(step)) + suf;
+}
+const ancho = el => Math.max(300, Math.floor(el.getBoundingClientRect().width) || 640);
 function barChart(el, labels, series, o = {}){
-  const W = 640, H = o.h || 240, pl = 44, pr = 8, pt = 10, pb = 26;
+  const W = ancho(el), H = o.h || (W < 480 ? 220 : 250), pl = o.money ? 56 : 46, pr = 8, pt = 12, pb = 26;
   const iw = W - pl - pr, ih = H - pt - pb;
   const tot = labels.map((_, i) => o.stack ? series.reduce((a, s) => a + s.v[i], 0) : Math.max(...series.map(s => s.v[i])));
-  const max = nice(Math.max(...tot, 1));
+  const { step, n:nt } = eje(Math.max(...tot)), max = step * nt, suf = o.money ? " €" : "";
   const n = labels.length, bw = iw / n, gap = Math.max(2, bw * 0.22);
+  const cada = Math.ceil(n / Math.max(2, Math.floor(iw / (o.labW || 52))));
   let g = "";
-  for (let t = 0; t <= 4; t++){
-    const y = pt + ih - ih * t / 4;
-    g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${short(max * t / 4)}</text>`;
+  for (let t = 0; t <= nt; t++){
+    const y = pt + ih - ih * t / nt;
+    g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${etiqueta(step * t, step, suf)}</text>`;
   }
   labels.forEach((lab, i) => {
     const x = pl + i * bw;
     const tipTxt = `<b>${lab}</b><br>` + series.map(s => `${s.n}: ${o.money ? eur(s.v[i], 2) : fmt(s.v[i])}`).join("<br>") + (o.extra ? "<br>" + o.extra(i) : "");
+    let bars = "";
     if (o.stack){
       let acc = 0;
-      series.forEach(s => {
-        const h = ih * s.v[i] / max; acc += h;
-        g += `<rect fill="${s.c}" x="${x + gap / 2}" y="${pt + ih - acc}" width="${bw - gap}" height="${h}" data-tip="${esc(tipTxt)}"/>`;
-      });
+      series.forEach(s => { const h = ih * s.v[i] / max; acc += h; bars += `<rect class="bar" fill="${s.c}" x="${x + gap / 2}" y="${pt + ih - acc}" width="${bw - gap}" height="${h}" stroke="#fff" stroke-width="${h > 2 ? .75 : 0}"/>`; });
     } else {
       const sw = (bw - gap) / series.length;
-      series.forEach((s, k) => {
-        const h = ih * s.v[i] / max;
-        g += `<rect fill="${s.c}" x="${x + gap / 2 + k * sw}" y="${pt + ih - h}" width="${sw - 1}" height="${h}" data-tip="${esc(tipTxt)}"/>`;
-      });
+      series.forEach((s, k) => { const h = ih * s.v[i] / max; bars += `<rect class="bar" fill="${s.c}" x="${x + gap / 2 + k * sw}" y="${pt + ih - h}" width="${sw - 1}" height="${h}"/>`; });
     }
-    const every = Math.ceil(n / (o.ticks || 8));
-    if (i % every === 0 || i === n - 1) g += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${lab}</text>`;
+    g += `<g class="cat" data-tip="${esc(tipTxt)}">${bars}<rect class="hit" x="${x}" y="${pt}" width="${bw}" height="${ih}"/></g>`;
+    if (i % cada === 0 || i === n - 1 && (n - 1) % cada > cada / 2) g += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${lab}</text>`;
   });
   g += `<line class="axis" x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}"/>`;
-  el.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+  el.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${esc(o.label + ". Usa las flechas para recorrerlo.")}">${g}</svg>`;
+  teclasGrafico($("svg", el));
 }
 function lineChart(el, labels, v, o = {}){
-  const W = 640, H = o.h || 240, pl = 56, pr = 12, pt = 12, pb = 26;
-  const iw = W - pl - pr, ih = H - pt - pb, max = nice(Math.max(...v, 1));
+  const W = ancho(el), H = o.h || (W < 480 ? 220 : 250), pl = 60, pr = 14, pt = 12, pb = 26;
+  const iw = W - pl - pr, ih = H - pt - pb, { step, n:nt } = eje(Math.max(...v)), max = step * nt;
   const X = i => pl + iw * i / (labels.length - 1), Y = y => pt + ih - ih * y / max;
+  const cada = Math.ceil(labels.length / Math.max(2, Math.floor(iw / 56)));
   let g = "";
-  for (let t = 0; t <= 4; t++){ const y = Y(max * t / 4); g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${short(max * t / 4)} €</text>`; }
+  for (let t = 0; t <= nt; t++){ const y = Y(step * t); g += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y}" y2="${y}"/><text x="${pl - 6}" y="${y + 4}" text-anchor="end">${etiqueta(step * t, step, " €")}</text>`; }
   const pts = v.map((y, i) => `${X(i)},${Y(y)}`).join(" ");
   g += `<polygon points="${pl},${Y(0)} ${pts} ${X(v.length - 1)},${Y(0)}" fill="var(--c3s)"/>`;
   g += `<polyline points="${pts}" fill="none" stroke="var(--c3)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  const cw = iw / (labels.length - 1);
   v.forEach((y, i) => {
-    g += `<circle cx="${X(i)}" cy="${Y(y)}" r="${i === v.length - 1 ? 4 : 2.5}" fill="var(--c3)"/>`;
-    g += `<rect x="${X(i) - iw / labels.length / 2}" y="${pt}" width="${iw / labels.length}" height="${ih}" fill="transparent" data-tip="<b>${labels[i]}</b><br>${eur(y)}"/>`;
-    if (i % 4 === 0 || i === v.length - 1) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${labels[i]}</text>`;
+    g += `<g class="cat" data-tip="${esc(`<b>${labels[i]}</b><br>${eur(y)}`)}"><circle class="bar" cx="${X(i)}" cy="${Y(y)}" r="${i === v.length - 1 ? 4 : 2.5}" fill="var(--c3)"/><rect class="hit" x="${X(i) - cw / 2}" y="${pt}" width="${cw}" height="${ih}"/></g>`;
+    if (i % cada === 0 || i === v.length - 1 && (v.length - 1) % cada > cada / 2) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${labels[i]}</text>`;
   });
   g += `<line class="axis" x1="${pl}" x2="${W - pr}" y1="${Y(0)}" y2="${Y(0)}"/>`;
-  el.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+  el.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" tabindex="0" aria-label="${esc(o.label + ". Usa las flechas para recorrerlo.")}">${g}</svg>`;
+  teclasGrafico($("svg", el));
 }
-function nice(m){ const p = 10 ** Math.floor(Math.log10(m)); const f = m / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
-function short(n){ return n >= 1e6 ? fmt(n / 1e6, 1) + " M" : n >= 1e4 ? fmt(n / 1e3, 0) + " k" : n >= 1e3 ? fmt(n / 1e3, 1) + " k" : fmt(n, n < 10 && n % 1 ? 1 : 0); }
+function teclasGrafico(svg){
+  svg.addEventListener("keydown", e => {
+    const cats = $$("g.cat", svg); let i = cats.findIndex(c => c.classList.contains("on"));
+    if (e.key === "ArrowRight") i = Math.min(cats.length - 1, i + 1);
+    else if (e.key === "ArrowLeft") i = Math.max(0, i < 0 ? 0 : i - 1);
+    else if (e.key === "Home") i = 0;
+    else if (e.key === "End") i = cats.length - 1;
+    else return;
+    e.preventDefault();
+    cats.forEach(c => c.classList.remove("on")); cats[i].classList.add("on"); tipAtEl(cats[i]);
+  });
+  svg.addEventListener("blur", () => { $$("g.cat.on", svg).forEach(c => c.classList.remove("on")); hideTip(); });
+}
 
 function kpis(el, items){
-  el.innerHTML = items.map(k => `<div class="kpi ${k.dark ? "dark" : ""}" style="${k.c ? `--kc:var(--${k.c})` : ""}" ${k.tip ? `data-tip="${esc(k.tip)}"` : ""}><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="x">${k.x || "&nbsp;"}</div></div>`).join("");
+  el.innerHTML = items.map(k => `<div class="kpi ${k.dark ? "dark" : ""}" style="${k.c ? `--kc:var(--${k.c})` : ""}" ${k.tip ? `data-tip="${esc(k.tip)}" tabindex="0"` : ""}><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="x">${k.x || "&nbsp;"}</div></div>`).join("");
 }
 
+/* tablas ordenables: la ordenación se recuerda por tabla */
+const ORDEN = {};
 function sortable(el, cols, rows, o = {}){
-  let key = o.sort || null, dir = -1;
-  function draw(){
-    const rs = key == null ? rows : [...rows].sort((a, b) => (a[key] > b[key] ? 1 : a[key] < b[key] ? -1 : 0) * dir);
-    el.innerHTML = `<thead><tr>${cols.map(c => `<th class="${c.num ? "num " : ""}${c.k ? "sort" : ""} ${key === c.k ? (dir > 0 ? "asc" : "desc") : ""}" data-k="${c.k || ""}">${c.h}</th>`).join("")}</tr></thead>
-      <tbody>${rs.map(r => `<tr class="${o.click ? "click" : ""}" data-id="${r.id || ""}">${cols.map(c => `<td class="${c.num ? "num" : ""}">${c.f ? c.f(r) : r[c.k]}</td>`).join("")}</tr>`).join("")}</tbody>
-      ${o.foot ? `<tfoot><tr>${o.foot.map((f, i) => `<td class="${cols[i].num ? "num" : ""}">${f}</td>`).join("")}</tr></tfoot>` : ""}`;
-    $$("th.sort", el).forEach(th => th.onclick = () => { const k = th.dataset.k; dir = key === k ? -dir : -1; key = k; draw(); });
-    if (o.click) $$("tbody tr", el).forEach(tr => tr.onclick = () => o.click(tr.dataset.id));
-  }
-  draw();
+  const id = el.id + (o.modo || "");
+  const st = ORDEN[id] || (ORDEN[id] = { key:o.sort || null, dir:-1 });
+  const rs = st.key == null ? rows : [...rows].sort((a, b) => {
+    const x = a[st.key], y = b[st.key];
+    return (typeof x === "string" ? x.localeCompare(y, "es") : x - y) * st.dir;
+  });
+  el.innerHTML = `${o.caption ? `<caption class="sr">${o.caption}</caption>` : ""}<thead><tr>${cols.map(c => `<th scope="col" class="${c.num ? "num" : ""}" data-k="${c.k}" ${st.key === c.k ? `aria-sort="${st.dir > 0 ? "ascending" : "descending"}"` : ""}><button class="sb" type="button">${c.h}</button></th>`).join("")}</tr></thead>
+    <tbody>${rs.map(r => `<tr class="${o.click ? "click" : ""}" data-id="${r.id || ""}">${cols.map(c => `<td class="${c.num ? "num" : ""}">${c.f ? c.f(r) : r[c.k]}</td>`).join("")}</tr>`).join("")}</tbody>
+    ${o.foot ? `<tfoot><tr>${o.foot.map((f, i) => `<td class="${cols[i].num ? "num" : ""}">${f}</td>`).join("")}</tr></tfoot>` : ""}`;
+  $$("th .sb", el).forEach(btn => btn.onclick = () => {
+    const k = btn.parentElement.dataset.k, col = cols.find(c => c.k === k);
+    if (st.key === k) st.dir = -st.dir; else { st.key = k; st.dir = col.num ? -1 : 1; }
+    sortable(el, cols, rows, o);
+    $(`th[data-k="${k}"] .sb`, el).focus();
+  });
+  if (o.click) $$("tbody tr", el).forEach(tr => tr.onclick = e => { if (!e.target.closest("button")) o.click(tr.dataset.id); });
+  if (o.click) $$("tbody .lnk", el).forEach(b => b.onclick = () => o.click(b.dataset.id));
 }
-const share = (v, max, c = "var(--c1)") => `<div class="hbar"><span style="min-width:52px;text-align:right">${fmt(v)}</span><div class="t"><div class="f" style="width:${max ? v / max * 100 : 0}%;background:${c}"></div></div></div>`;
+const share = (v, max, c = "var(--c1)") => `<div class="hbar"><span style="min-width:52px;text-align:right">${fmt(v)}</span><div class="t" aria-hidden="true"><div class="f" style="width:${max ? v / max * 100 : 0}%;background:${c}"></div></div></div>`;
+const cpl = (inv, n) => n ? inv / n / 100 : 0;    // €/lead desde céntimos
+// importes en euros enteros que suman exactamente el total redondeado (mismo reparto exacto)
+const eurosCuadrados = cents => reparto(Math.round(sum(cents) / 100), cents);
+const milesimas = partes => reparto(1000, partes);  // porcentajes con un decimal que suman 100,0 %
+const veces = (a, b) => fmt(a / b, 1) + "×";
 
 /* ---------- render ---------- */
-const sel = $("#selProducto");
+const sel = $("#selProducto"), selPer = $("#selPeriodo");
 sel.innerHTML = PRODUCTOS.map(c => `<option value="${c.id}">${c.nombre}</option>`).join("");
-let tabActual = "producto";
+let modoAdq = "pago";
 
 function render(){
-  const c = PRODUCTOS.find(x => x.id === sel.value), d = gen(c), P = periodo(d);
-  $("#dashTitle").textContent = tabActual === "resumen" ? "Resumen de productos" : c.nombre;
-  const K = v => Math.round(v * P.k);
-  const leads = K(d.leads), inversion = d.inversion * P.k, op = K(d.opor), ven = K(d.ventas), ing = d.ingresos * P.k;
-  const pagoL = d.canPago.reduce((a, b) => a + b.leads, 0);
+  const c = PRODUCTOS.find(x => x.id === sel.value), per = selPer.value, A = agg(c, per);
+  const d7 = per === "d7";
+  $("#dashTitle").textContent = tabActual === "resumen" ? "Resumen de productos" : c.nombre + (d7 ? " · últimos 7 días" : "");
+  $("#filters").hidden = tabActual === "resumen";
+  const pagoOp = sum(A.canal.filter(k => k.grupo === "Pago").map(k => k.op)), orgOp = A.opor - pagoOp;
 
-  // Producto
+  // ----- Producto
   kpis($("#kpisProducto"), [
-    { l:"Leads", v:fmt(leads), c:"c1", x:`<b>${fmt(K(d.visitas))}</b> visitas`, tip:"Contactos que dejan sus datos en un formulario" },
-    { l:"Inversión", v:eur(inversion), c:"c5", x:"Todas las plataformas" },
-    { l:"CPL blended", v:eur(inversion / leads, 2), c:"c5", x:`CPL Ads <b>${eur(inversion / (pagoL * P.k), 2)}</b>` },
-    { l:"Oportunidades", v:fmt(op), c:"c2", x:`<b>${pct(op / leads)}</b> de los leads`, tip:"Lead con interés de compra cualificado" },
-    { l:"Ventas", v:fmt(ven), c:"c3", x:`<b>${pct(ven / op)}</b> de cierre` },
-    { l:"Ingresos", v:eur(ing), dark:true, x:`ROAS <b>${fmt(ing / inversion, 1)}×</b> · precio ${eur(c.precio)}` },
+    { l:"Leads", v:fmt(A.leads), c:"c1", x:`<b>${fmt(A.visitas)}</b> visitas`, tip:"Contactos que dejan sus datos en un formulario" },
+    { l:"Inversión", v:E(A.inversion), c:"c5", x:"Todas las plataformas" },
+    { l:"CPL blended", v:eur(cpl(A.inversion, A.leads), 2), c:"c5", x:`CPL Ads <b>${eur(cpl(A.inversion, A.pagoL), 2)}</b>`, tip:"Blended: inversión / todos los leads. Ads: inversión / leads de pago" },
+    { l:"Oportunidades", v:fmt(A.opor), c:"c2", x:`<b>${pct(A.opor / A.leads)}</b> de los leads`, tip:"Lead con interés de compra cualificado" },
+    { l:"Ventas", v:fmt(A.ventas), c:"c3", x:`<b>${pct(A.ventas / A.opor)}</b> de cierre` },
+    { l:"Ingresos", v:E(A.ingresos), dark:true, x:`ROAS <b>${veces(A.ingresos, A.inversion)}</b> · ticket ${E(A.ingresos / A.ventas)}` },
   ]);
-  const dl = P.pago.map((_, i) => fecha(c.base, P.from + i));
-  barChart($("#chLeads"), dl, [{ n:"Pago", v:P.pago, c:"var(--c1)" }, { n:"Orgánico", v:P.org, c:"var(--c2)" }], { stack:true, ticks:8, extra:i => `Inversión: ${eur(P.inv[i])}` });
-  const steps = [["Visita", K(d.visitas), "var(--c5)"], ["Lead", leads, "var(--c2)"], ["Oportunidad", op, "var(--c4)"], ["Venta", ven, "var(--c3)"]];
+  const dl = A.pago.map((_, i) => fecha(c.base, A.from + i)), invDia = eurosCuadrados(A.inv);
+  $("#capLeads").textContent = (d7 ? "Últimos 7 días de captación" : "Periodo de captación") + " · toca o pasa el cursor por un día para ver la inversión";
+  barChart($("#chLeads"), dl, [{ n:"Pago", v:A.pago, c:"var(--c1)" }, { n:"Orgánico", v:A.org, c:"var(--c2)" }],
+    { stack:true, extra:i => `Inversión: ${eur(invDia[i])}`, label:`Leads por día, ${dl[0]} a ${dl[dl.length - 1]}: ${fmt(A.leads)} en total, ${fmt(A.pagoL)} de pago y ${fmt(A.orgL)} orgánicos` });
+  const steps = [["Visitas", A.visitas, "var(--s4)"], ["Leads", A.leads, "var(--s45)"], ["Oportunidades", A.opor, "var(--s5)"], ["Ventas", A.ventas, "var(--s6)"]];
   $("#funnel").innerHTML = steps.map(([n, v, col], i) => `<div class="row"><span class="lab">${n}</span>
-    <div class="track"><div class="fill" style="background:${col};width:${Math.max(1.5, (v / steps[0][1]) ** 0.5 * 100)}%"></div></div>
+    <div class="track" aria-hidden="true"><div class="fill" style="background:${col};width:${Math.max(1.5, (v / steps[0][1]) ** 0.5 * 100)}%"></div></div>
     <span class="val">${fmt(v)}<small>${i ? pct(v / steps[i - 1][1]) : "entrada"}</small></span></div>`).join("");
-  $("#espNote").innerHTML = `El ${pct(d.paises[0].inv / d.inversion, 0)} de la inversión va a España. Barras en escala de raíz para que se lean las fases pequeñas.`;
+  {
+    const U = d7 ? agg(c, "toda") : agg(c, "d7"), tasa = x => x.opor / x.leads;
+    $("#insProducto").innerHTML = `<p><b>Lectura.</b> Los leads orgánicos pasan a oportunidad al <b>${pct(orgOp / A.orgL)}</b> y los de pago al <b>${pct(pagoOp / A.pagoL)}</b>: el pago trae el ${pct(A.pagoL / A.leads, 0)} del volumen, pero cada lead orgánico vale más.</p>`
+      + (d7 ? `<p>Estos 7 días convierten a oportunidad al <b>${pct(tasa(A))}</b>, frente al ${pct(tasa(U))} de toda la campaña: los leads del final llegan ${tasa(A) >= tasa(U) ? "más" : "menos"} calientes.</p>`
+            : `<p>Los últimos 7 días traen el <b>${pct(U.leads / A.leads, 0)}</b> de los leads y convierten a oportunidad al <b>${pct(tasa(U))}</b>, frente al ${pct(tasa(A))} de toda la campaña.</p>`);
+  }
 
-  // Países
-  const mxL = Math.max(...d.paises.map(p => p.leads));
-  const pr = d.paises.map(p => ({ ...p, cpla: p.inv / Math.max(p.pago, 1), cplb: p.inv / Math.max(p.leads, 1) }));
+  // ----- Países
+  const invPais = eurosCuadrados(A.pais.map(p => p.inv));
+  const pr = A.pais.map((p, i) => ({ ...p, invE:invPais[i], cpla:cpl(p.inv, p.pago), cplb:cpl(p.inv, p.leads), v100:p.ven / p.leads * 100 }));
+  const mxL = Math.max(...pr.map(p => p.leads));
   sortable($("#tblPaises"), [
     { h:"Agrupación", k:"p" },
     { h:"Leads", k:"leads", num:true, f:r => share(r.leads, mxL) },
-    { h:"Inversión", k:"inv", num:true, f:r => eur(r.inv) },
+    { h:"Leads pago", k:"pago", num:true, f:r => fmt(r.pago) },
+    { h:"Inversión", k:"inv", num:true, f:r => eur(r.invE) },
     { h:"CPL Ads", k:"cpla", num:true, f:r => eur(r.cpla, 2) },
-    { h:"Ventas", k:"ventas", num:true, f:r => fmt(r.ventas) },
-  ], pr, { foot:["Total", fmt(d.leads), eur(d.inversion), eur(d.inversion / pagoL, 2), fmt(d.ventas)] });
-  barChart($("#chPaises"), PAISES, [{ n:"CPL Ads", v:pr.map(p => p.cpla), c:"var(--c1)" }, { n:"CPL blended", v:pr.map(p => p.cplb), c:"var(--c5)" }], { money:true, ticks:5, h:260 });
+    { h:"Ventas", k:"ven", num:true, f:r => fmt(r.ven) },
+    { h:"Ventas / 100 leads", k:"v100", num:true, f:r => fmt(r.v100, 2) },
+  ], pr, { caption:"Leads, inversión y ventas por agrupación de países",
+    foot:["Total", fmt(A.leads), fmt(A.pagoL), E(A.inversion), eur(cpl(A.inversion, A.pagoL), 2), fmt(A.ventas), fmt(A.ventas / A.leads * 100, 2)] });
+  barChart($("#chPaises"), ["España","México","Argentina","R. Europa","Otros"], [{ n:"CPL Ads", v:pr.map(p => p.cpla), c:"var(--c1)" }, { n:"CPL blended", v:pr.map(p => p.cplb), c:"var(--c2)" }],
+    { money:true, h:260, labW:60, label:"CPL Ads y CPL blended por agrupación de países: " + pr.map(p => `${p.p} ${eur(p.cpla, 2)} y ${eur(p.cplb, 2)}`).join("; ") });
+  {
+    const caro = pr.reduce((a, b) => b.cpla > a.cpla ? b : a), mejor = pr.reduce((a, b) => b.v100 > a.v100 ? b : a), media = cpl(A.inversion, A.pagoL);
+    const cierre = caro === mejor ? `, pero es también la que más cierra: <b>${fmt(caro.v100, 2)}</b> ventas por 100 leads, así que el lead caro compensa`
+      : ` y cierra ${fmt(caro.v100, 2)} ventas por 100 leads; la que más cierra es ${mejor.p}, con <b>${fmt(mejor.v100, 2)}</b>`;
+    $("#insPaises").innerHTML = `<p><b>Lectura.</b> ${caro.p} tiene el CPL Ads más alto (<b>${eur(caro.cpla, 2)}</b>, ${veces(caro.cpla, media)} la media)${cierre}. El ${pct(pr[0].inv / A.inversion, 0)} de la inversión va al mercado España.</p>`;
+  }
 
-  // Adquisición
-  const orgL = d.leads - pagoL;
+  // ----- Adquisición
   kpis($("#kpisAdq"), [
-    { l:"Leads", v:fmt(d.leads), c:"c5" },
-    { l:"Leads pago", v:fmt(pagoL), c:"c1", x:`<b>${pct(pagoL / d.leads, 0)}</b> del total` },
-    { l:"Leads orgánico", v:fmt(orgL), c:"c2", x:`<b>${pct(orgL / d.leads, 0)}</b> del total` },
-    { l:"Inversión", v:eur(d.inversion), c:"c5" },
-    { l:"CPL Ads", v:eur(d.inversion / pagoL, 2), c:"c1" },
-    { l:"CPL blended", v:eur(d.inversion / d.leads, 2), dark:true },
+    { l:"Leads", v:fmt(A.leads), c:"c5" },
+    { l:"Leads pago", v:fmt(A.pagoL), c:"c1", x:`<b>${pct(A.pagoL / A.leads, 0)}</b> del total` },
+    { l:"Leads orgánicos", v:fmt(A.orgL), c:"c2", x:`<b>${pct(A.orgL / A.leads, 0)}</b> del total` },
+    { l:"Inversión", v:E(A.inversion), c:"c5" },
+    { l:"CPL Ads", v:eur(cpl(A.inversion, A.pagoL), 2), c:"c1" },
+    { l:"CPL blended", v:eur(cpl(A.inversion, A.leads), 2), dark:true },
   ]);
-  const all = [...d.canPago, ...d.canOrg].map(x => ({ ...x, pctl: x.leads / d.leads, cpl: x.inv ? x.inv / x.leads : 0, conv: x.op / Math.max(x.leads, 1) }));
+  const invCanal = eurosCuadrados(A.canal.map(x => x.inv)), pm = milesimas(A.canal.map(x => x.leads));
+  const all = A.canal.map((x, i) => ({ ...x, invE:invCanal[i], pm:pm[i], pctl:x.leads / A.leads, cpl:x.inv ? cpl(x.inv, x.leads) : 0, conv:x.op / Math.max(x.leads, 1) }));
   const mxC = Math.max(...all.map(x => x.leads));
   sortable($("#tblCanales"), [
     { h:"Canal", k:"n" },
     { h:"Grupo", k:"grupo", f:r => `<span class="tag ${r.grupo === "Pago" ? "pago" : "org"}">${r.grupo}</span>` },
     { h:"Leads", k:"leads", num:true, f:r => share(r.leads, mxC, r.grupo === "Pago" ? "var(--c1)" : "var(--c2)") },
-    { h:"% leads", k:"pctl", num:true, f:r => pct(r.pctl) },
-    { h:"Inversión", k:"inv", num:true, f:r => r.inv ? eur(r.inv) : "—" },
+    { h:"% leads", k:"pctl", num:true, f:r => fmt(r.pm / 10, 1) + " %" },
+    { h:"Inversión", k:"inv", num:true, f:r => r.inv ? eur(r.invE) : "—" },
     { h:"CPL", k:"cpl", num:true, f:r => r.cpl ? eur(r.cpl, 2) : "—" },
     { h:"Oportunidades", k:"op", num:true, f:r => fmt(r.op) },
     { h:"Lead → oportunidad", k:"conv", num:true, f:r => pct(r.conv) },
-  ], all, { sort:"leads" });
-  drawDetalle(d);
+  ], all, { sort:"leads", caption:"Leads, inversión y oportunidades por canal",
+    foot:["Total", "", fmt(A.leads), pct(1), E(A.inversion), eur(cpl(A.inversion, A.pagoL), 2), fmt(A.opor), pct(A.opor / A.leads)] });
+  drawDetalle(A);
+  {
+    const conLeads = A.utm.filter(u => u.leads > 0), grandes = conLeads.filter(u => u.leads >= 20);
+    const us = (grandes.length ? grandes : conLeads).map(u => ({ ...u, c:cpl(u.inv, u.leads) }));
+    const lo = us.reduce((a, b) => b.c < a.c ? b : a), hi = us.reduce((a, b) => b.c > a.c ? b : a);
+    const cand = all.filter(x => x.leads >= 50), top = (cand.length ? cand : all).reduce((a, b) => b.conv > a.conv ? b : a);
+    $("#insAdq").innerHTML = `<p><b>Lectura.</b> La campaña más barata es <b>${lo.utm}</b> (${eur(lo.c, 2)} por lead) y la más cara <b>${hi.utm}</b> (${eur(hi.c, 2)}, ${veces(hi.c, lo.c)} la más barata). ${top.n} es el canal que mejor pasa a oportunidad (<b>${pct(top.conv)}</b>).</p>`;
+  }
 
-  // Oportunidades
-  let a = 0; const acum = d.ventasDia.map(v => (a += v * d.ingresos / Math.max(d.ventas, 1)));
-  const dd = d.oporDia.map((_, i) => fecha(c.base, DIAS + i));
-  const pico = d.oporDia.indexOf(Math.max(...d.oporDia));
+  // ----- Oportunidades
+  let ac = 0; const acum = A.ingDia.map(v => (ac += v) / 100);
+  const dd = A.oporDia.map((_, i) => fecha(c.base, DIAS + i));
+  const pico = A.oporDia.indexOf(Math.max(...A.oporDia));
   kpis($("#kpisOpor"), [
-    { l:"Oportunidades", v:fmt(d.opor), c:"c2" },
-    { l:"Día pico", v:fmt(d.oporDia[pico]), c:"c2", x:dd[pico] },
-    { l:"Ventas", v:fmt(d.ventas), c:"c3" },
-    { l:"Cierre", v:pct(d.ventas / d.opor), c:"c3" },
-    { l:"Ticket medio", v:eur(d.ingresos / Math.max(d.ventas, 1)), c:"c4" },
-    { l:"Ingresos", v:eur(d.ingresos), dark:true },
+    { l:"Oportunidades", v:fmt(A.opor), c:"c2" },
+    { l:"Día pico", v:fmt(A.oporDia[pico]), c:"c2", x:dd[pico] },
+    { l:"Ventas", v:fmt(A.ventas), c:"c3" },
+    { l:"Cierre", v:pct(A.ventas / A.opor), c:"c3", x:"ventas / oportunidades" },
+    { l:"Ticket medio", v:E(A.ingresos / A.ventas), c:"c4", x:`precio de lista ${eur(c.precio)}` },
+    { l:"Ingresos", v:E(A.ingresos), dark:true, x:`ROAS <b>${veces(A.ingresos, A.inversion)}</b>` },
   ]);
-  barChart($("#chOpor"), dd, [{ n:"Oportunidades", v:d.oporDia, c:"var(--c2)" }, { n:"Ventas", v:d.ventasDia, c:"var(--c3)" }], { ticks:6 });
-  lineChart($("#chIng"), dd, acum);
+  barChart($("#chOpor"), dd, [{ n:"Oportunidades", v:A.oporDia, c:"var(--c2)" }, { n:"Ventas", v:A.ventasDia, c:"var(--c3)" }],
+    { label:`Oportunidades y ventas por día, ${dd[0]} a ${dd[dd.length - 1]}: ${fmt(A.opor)} oportunidades y ${fmt(A.ventas)} ventas; pico de ${fmt(A.oporDia[pico])} el ${dd[pico]}` });
+  lineChart($("#chIng"), dd, acum, { label:`Ingresos acumulados del ${dd[0]} al ${dd[dd.length - 1]}: ${E(A.ingresos)}` });
+  {
+    const op7 = sum(A.oporDia.slice(0, 7)), v7 = sum(A.ventasDia.slice(0, 7));
+    $("#insOpor").innerHTML = `<p><b>Lectura.</b> El <b>${pct(op7 / A.opor, 0)}</b> de las oportunidades y el ${pct(v7 / A.ventas, 0)} de las ventas llegan en la primera semana tras el cierre: es cuando el equipo comercial necesita más capacidad. El ticket medio queda un ${pct(1 - A.ingresos / A.ventas / 100 / c.precio)} por debajo del precio por los descuentos.</p>`;
+  }
 
-  // Resumen
-  const rows = PRODUCTOS.map(cc => { const g = gen(cc); return { id:cc.id, nombre:cc.nombre, color:cc.color, precio:cc.precio, leads:g.leads, inv:g.inversion, cpl:g.inversion / g.leads, op:g.opor, ven:g.ventas, ing:g.ingresos, roas:g.ingresos / g.inversion }; });
+  // ----- Resumen (siempre campaña completa)
+  const rows = PRODUCTOS.map(cc => { const g = agg(cc, "toda"); return { id:cc.id, nombre:cc.nombre, color:cc.color, precio:cc.precio, leads:g.leads, inv:g.inversion, cpl:cpl(g.inversion, g.leads), op:g.opor, ven:g.ventas, ing:g.ingresos, roas:g.ingresos / g.inversion }; });
   const S = k => rows.reduce((x, y) => x + y[k], 0);
+  const invR = eurosCuadrados(rows.map(r => r.inv)), ingR = eurosCuadrados(rows.map(r => r.ing));
+  rows.forEach((r, i) => { r.invE = invR[i]; r.ingE = ingR[i]; });
   kpis($("#kpisResumen"), [
     { l:"Productos", v:rows.length, c:"c5" },
     { l:"Leads", v:fmt(S("leads")), c:"c1" },
-    { l:"Inversión", v:eur(S("inv")), c:"c5" },
+    { l:"Inversión", v:E(S("inv")), c:"c5" },
     { l:"Oportunidades", v:fmt(S("op")), c:"c2" },
     { l:"Ventas", v:fmt(S("ven")), c:"c3" },
-    { l:"Ingresos", v:eur(S("ing")), x:`ROAS <b>${fmt(S("ing") / S("inv"), 1)}×</b>`, dark:true },
+    { l:"Ingresos", v:E(S("ing")), x:`ROAS <b>${veces(S("ing"), S("inv"))}</b>`, dark:true },
   ]);
   sortable($("#tblResumen"), [
-    { h:"Producto", k:"nombre", f:r => `<span class="dot" style="background:${r.color}"></span><b>${r.nombre}</b>` },
+    { h:"Producto", k:"nombre", f:r => `<span class="dot" style="background:${r.color}" aria-hidden="true"></span><button class="lnk" type="button" data-id="${r.id}">${r.nombre}</button>` },
     { h:"Precio", k:"precio", num:true, f:r => eur(r.precio) },
     { h:"Leads", k:"leads", num:true, f:r => fmt(r.leads) },
-    { h:"Inversión", k:"inv", num:true, f:r => eur(r.inv) },
+    { h:"Inversión", k:"inv", num:true, f:r => eur(r.invE) },
     { h:"CPL", k:"cpl", num:true, f:r => eur(r.cpl, 2) },
     { h:"Oportunidades", k:"op", num:true, f:r => fmt(r.op) },
     { h:"Ventas", k:"ven", num:true, f:r => fmt(r.ven) },
-    { h:"Ingresos", k:"ing", num:true, f:r => eur(r.ing) },
+    { h:"Ingresos", k:"ing", num:true, f:r => eur(r.ingE) },
     { h:"ROAS", k:"roas", num:true, f:r => fmt(r.roas, 1) + "×" },
-  ], rows, { click:id => { sel.value = id; setTab("producto"); },
-    foot:["Total", "", fmt(S("leads")), eur(S("inv")), eur(S("inv") / S("leads"), 2), fmt(S("op")), fmt(S("ven")), eur(S("ing")), fmt(S("ing") / S("inv"), 1) + "×"] });
+  ], rows, { caption:"Resumen de todos los productos", click:id => { sel.value = id; setTab("producto"); $("#t-producto").focus(); },
+    foot:["Total", "", fmt(S("leads")), E(S("inv")), eur(cpl(S("inv"), S("leads")), 2), fmt(S("op")), fmt(S("ven")), E(S("ing")), veces(S("ing"), S("inv"))] });
+  {
+    const best = rows.reduce((a, b) => b.roas > a.roas ? b : a), mas = rows.reduce((a, b) => b.leads > a.leads ? b : a);
+    $("#insResumen").innerHTML = `<p><b>Lectura.</b> ${mas.nombre} trae más volumen (${fmt(mas.leads)} leads), pero <b>${best.nombre}</b> tiene el mejor ROAS (<b>${fmt(best.roas, 1)}×</b>) con ${fmt(best.ven)} ventas a ${eur(best.precio)}: con un precio alto, pocas ventas pagan la campaña.</p>`;
+  }
+  sombraTabs();
 }
 
-let modoAdq = "pago";
-function drawDetalle(d){
+function drawDetalle(A){
   if (modoAdq === "pago"){
-    const rs = d.utm.map(u => ({ ...u, cpl:u.inv / Math.max(u.leads, 1) }));
+    const invU = eurosCuadrados(A.utm.map(u => u.inv));
+    const rs = A.utm.map((u, i) => ({ ...u, invE:invU[i], cpl:cpl(u.inv, u.leads), conv:u.op / Math.max(u.leads, 1) }));
     const mx = Math.max(...rs.map(x => x.leads));
     sortable($("#tblDetalle"), [
       { h:"utm_campaign", k:"utm", f:r => `<span style="font-family:var(--mono);font-size:12px">${r.utm}</span>` },
       { h:"Plataforma", k:"plat" },
       { h:"Leads", k:"leads", num:true, f:r => share(r.leads, mx) },
-      { h:"Inversión", k:"inv", num:true, f:r => eur(r.inv) },
+      { h:"Inversión", k:"inv", num:true, f:r => eur(r.invE) },
       { h:"CPL", k:"cpl", num:true, f:r => eur(r.cpl, 2) },
-    ], rs, { sort:"leads" });
+      { h:"Oportunidades", k:"op", num:true, f:r => fmt(r.op) },
+    ], rs, { sort:"leads", modo:"pago", caption:"Detalle de pago por campaña",
+      foot:["Total", "", fmt(A.pagoL), E(A.inversion), eur(cpl(A.inversion, A.pagoL), 2), fmt(sum(rs.map(r => r.op)))] });
   } else {
-    const rs = d.canOrg.filter(x => x.leads > 0).map(x => ({ ...x, conv:x.op / Math.max(x.leads, 1) }));
-    const mx = Math.max(...rs.map(x => x.leads));
+    const rs = A.canal.filter(x => x.grupo === "Orgánico").map(x => ({ ...x, conv:x.op / Math.max(x.leads, 1) }));
+    const mx = Math.max(...rs.map(x => x.leads)), L = sum(rs.map(r => r.leads)), O = sum(rs.map(r => r.op));
     sortable($("#tblDetalle"), [
       { h:"Grupo orgánico", k:"n" },
       { h:"Leads", k:"leads", num:true, f:r => share(r.leads, mx, "var(--c2)") },
       { h:"Oportunidades", k:"op", num:true, f:r => fmt(r.op) },
       { h:"Lead → oportunidad", k:"conv", num:true, f:r => pct(r.conv) },
-    ], rs, { sort:"leads" });
+    ], rs, { sort:"leads", modo:"org", caption:"Detalle orgánico por grupo", foot:["Total", fmt(L), fmt(O), pct(O / L)] });
   }
 }
 $$("#segAdq button").forEach(b => b.onclick = () => {
   modoAdq = b.dataset.v;
   $$("#segAdq button").forEach(x => x.setAttribute("aria-pressed", x === b));
-  drawDetalle(gen(PRODUCTOS.find(x => x.id === sel.value)));
+  drawDetalle(agg(PRODUCTOS.find(x => x.id === sel.value), selPer.value));
 });
 
-function setTab(t){
+function setTab(t, escribir = true){
   tabActual = t;
-  $$("#dashTabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  marcar($("#dashTabs"), "tab", t);
   $$(".tab").forEach(x => x.classList.toggle("on", x.id === "tab-" + t));
   render();
+  if (escribir) escribirHash();
 }
-$$("#dashTabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
-sel.onchange = render;
-$("#selPeriodo").onchange = render;
-render();
+tablist($("#dashTabs"), b => setTab(b.dataset.tab));
+function sombraTabs(){ const t = $("#dashTabs"); $("#tabsWrap").classList.toggle("more", t.scrollWidth - t.scrollLeft - t.clientWidth > 4); }
+$("#dashTabs").addEventListener("scroll", sombraTabs, { passive:true });
+sel.onchange = () => { render(); escribirHash(); };
+selPer.onchange = () => { render(); escribirHash(); };
+let rz = null;
+addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (parte === "panel") render(); }, 150); });
+
+function leerHash(){
+  const h = decodeURIComponent(location.hash.slice(1)).split("/");
+  if (h[0] === "flujo"){
+    showPart("flujo", false);
+    const n = +h[1]; if (n >= 1 && n <= STAGES.length) select(n - 1);
+  } else if (h[0] === "resumen"){
+    tabActual = "resumen"; showPart("panel", false); setTab("resumen", false);
+  } else if (h[0] === "producto"){
+    if (PRODUCTOS.some(p => p.id === h[1])) sel.value = h[1];
+    selPer.value = h[3] === "7d" ? "d7" : "toda";
+    tabActual = TABS.includes(h[2]) ? h[2] : "producto";
+    showPart("panel", false); setTab(tabActual, false);
+  } else return false;
+  return true;
+}
+addEventListener("hashchange", () => { if (leerHash()) window.scrollTo({ top:$("nav.parts").offsetTop, behavior:suave() }); });
+
+function init(){
+  select(0);
+  if (!leerHash()) render();
+}
+init();
 })();
 </script>
 </body>
